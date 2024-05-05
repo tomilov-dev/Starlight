@@ -26,7 +26,10 @@ class CountriesAdder(DatabaseAdder):
             for c in countries
         ]
 
-        await self.mvdb.insertb_countries(countries)
+        print("Batch Insert Countries")
+        async with self.mvdb.session as session:
+            await self.mvdb.insertb(countries, session)
+            await session.commit()
 
 
 async def main():

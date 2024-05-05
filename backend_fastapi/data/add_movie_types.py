@@ -25,7 +25,10 @@ class MovieTypesAdder(DatabaseAdder):
             for t in types
         ]
 
-        await self.mvdb.insertb_movie_types(types)
+        print("Batch Insert Movie Types")
+        async with self.mvdb.session as session:
+            await self.mvdb.insertb(types, session)
+            await session.commit()
 
 
 async def main():

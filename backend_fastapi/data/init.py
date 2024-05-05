@@ -18,7 +18,10 @@ async def main():
     imdb_movies: list[IMDbMovie] = dataset.get_movies(10000, settings.DEBUG)
     await IMDbMovieAdder().add_all(imdb_movies)
     await TMDbMovieAdder().add_all()
-    await IMDbExtraAdder().add_all()
+
+    ## Problem with blocking (cooldown) on IMDb side
+    ## Need to investigate cooldown time and limits req per sec
+    # await IMDbExtraAdder().add_all()
 
 
 if __name__ == "__main__":

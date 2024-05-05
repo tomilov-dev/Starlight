@@ -27,7 +27,10 @@ class GenresAdder(DatabaseAdder):
             for g in genres
         ]
 
-        await self.mvdb.insertb_genres(genres)
+        print("Batch Insert Genres")
+        async with self.mvdb.session as session:
+            await self.mvdb.insertb(genres, session)
+            await session.commit()
 
 
 async def main():
