@@ -99,18 +99,18 @@ class IMDbScraper(BaseScraper):
 
         return data
 
-    def _check_response(self, movie_html: str) -> None:
+    def _check_response(self, movie_html: str, imdb_mvid: str) -> None:
         ERROR503 = "Error 503 - IMDb"
         ERROR404 = "404 Error - IMDb"
 
         if movie_html is None:
-            raise IMDbEmptyResponeError
+            raise IMDbEmptyResponeError(f"IMDbEmptyResponeError in Movie:", imdb_mvid)
 
         elif ERROR503 in movie_html:
-            raise IMDb503Error
+            raise IMDb503Error(f"IMDb503Error in Movie:", imdb_mvid)
 
         elif ERROR404 in movie_html:
-            raise IMDb404Error
+            raise IMDb404Error(f"IMDb404Error in Movie:", imdb_mvid)
 
         return False
 
@@ -119,7 +119,7 @@ class IMDbScraper(BaseScraper):
         URL = f"https://www.imdb.com/title/{imdb_mvid}"
 
         movie_html = await self.request(URL)
-        self._check_response(movie_html)
+        self._check_response(movie_html, imdb_mvid)
 
         movie_data = self._parse_movie(movie_html, movie_data)
         return IMDbMovieExtraInfo(**movie_data)

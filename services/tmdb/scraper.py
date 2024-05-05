@@ -75,6 +75,14 @@ class Production(object):
         self.country = country
         self.image_url = image_url
 
+    def __hash__(self) -> str:
+        return hash(self.name)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Production):
+            return False
+        return self.__hash__() == other.__hash__()
+
     def __repr__(self) -> str:
         return f"{self.name}"
 
@@ -313,7 +321,7 @@ class TMDbScraper(BaseScraper):
     def check_status(self, status: int) -> None:
         error = self.STATUSES.get(status, None)
         if error is not None:
-            raise error
+            raise error()
 
     async def extractor(self, response: ClientResponse):
         self.check_status(response.status)
