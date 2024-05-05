@@ -320,29 +320,3 @@ class TMDbAdder(object):
         print("Add TMDb data")
         tasks = [self._loop.create_task(self.add(movie)) async for movie in movies]
         await tqdm_asyncio.gather(*tasks, total=len(tasks))
-
-
-async def main():
-    proxy = PROXY
-    api_key = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhZWIzNGQxNGJhZWEwM2JiZjRmYTVhZTkzNTdjYTllZSIsInN1YiI6IjY1YWQzODIyMjVjZDg1MDBlYTBjYjgzMyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.o7Q5t7MZiKC3SnXs2vYmdGSY6HWMg4PZdYcSMANKOSc"
-
-    scraper = TMDbScraper(api_key, proxy, 45, 1)
-    adder = TMDbAdder(scraper)
-
-    await adder.add_all()
-
-
-async def test():
-    proxy = PROXY
-    api_key = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhZWIzNGQxNGJhZWEwM2JiZjRmYTVhZTkzNTdjYTllZSIsInN1YiI6IjY1YWQzODIyMjVjZDg1MDBlYTBjYjgzMyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.o7Q5t7MZiKC3SnXs2vYmdGSY6HWMg4PZdYcSMANKOSc"
-
-    scraper = TMDbScraper(api_key, proxy, 45, 1)
-    tmdb = TMDbAdder(scraper)
-
-    movie = await scraper.get_movie("tt0499549")
-    await tmdb.add_with_imdb_mvid(movie.imdb_mvid)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-    # asyncio.run(test())
