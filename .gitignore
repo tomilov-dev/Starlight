@@ -1,4 +1,9 @@
 venv
-.env
-.pyc
+*.env
+*.pyc
 __pycache__
+*.pytest_cache
+*.tsv
+*.csv
+*.xlsx
+*.xls
