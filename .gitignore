@@ -9,6 +9,9 @@ __pycache__
 **.xlsx
 **.xls
 
+# Local filtered Data for debug mode
+!**.filtered.csv
+
 **/media
 
 # Compiled output
