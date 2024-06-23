@@ -1,0 +1,28 @@
+<div class="px-12 py-8">
+  <h1 class="text-center text-4xl mb-8">Выберите жанр фильма</h1>
+  <div class="grid grid-cols-4 gap-2">
+    <div
+      *ngFor="let genre of genres"
+      class="min-h-[300px] px-8 bg-neutral-200 text-center rounded-xl group hover:bg-neutral duration-500"
+    >
+      <div class="py-8 flex flex-col justify-between h-full">
+        <div class="flex-grow">
+          <a
+            [routerLink]="['/genres', genre.slug]"
+            class="text-xl text-white group-hover:text-primary duration-500"
+          >
+            {{ genre.name_ru }}
+          </a>
+        </div>
+
+        <div
+          class="flex justify-center opacity-0 group-hover:opacity-100 duration-500"
+        >
+          <button class="btn accent">
+            <a [routerLink]="['/genres', genre.slug]"> Подробнее </a>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

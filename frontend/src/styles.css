@@ -1,0 +1,23 @@
+/* You can add global styles to this file, and also import other style files */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .nav-text {
+    @apply block py-2 px-3 font-medium text-white rounded-full hover:text-primary hover:ring-2 hover:ring-primary-200 duration-500;
+  }
+
+  .nav-text.selected {
+    @apply block py-2 px-3 text-primary;
+  }
+
+  .btn {
+    @apply text-white focus:ring-2 focus:ring-accent-100 px-4 py-2 rounded-lg font-medium;
+  }
+
+  .btn.accent {
+    @apply focus:ring-2 focus:ring-white px-4 py-2 rounded-lg text-white bg-accent border-2;
+  }
+}

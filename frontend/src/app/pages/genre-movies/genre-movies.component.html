@@ -1,0 +1,35 @@
+<div class="px-12 py-8">
+  <h1 class="text-4xl mb-8">Фильмы в жанре "{{ genre?.name_ru }}"</h1>
+  <div *ngIf="genre?.movies !== undefined && genre?.movies?.length === 0">
+    <p>Фильмов в жанре "{{ genre?.name_ru }}" пока что нет.</p>
+    <a
+      [routerLink]="['/genres']"
+      class="underline underline-offset-4 hover:no-underline hover:text-accent"
+      >Выберите другой жанр</a
+    >
+  </div>
+
+  <div
+    *ngIf="genre?.movies !== undefined && genre?.movies?.length !== 0"
+    class="flex bg-base-200 p-6 gap-4"
+  >
+    <div class="basis-3/4 flex flex-col gap-2">
+      <div
+        *ngFor="let movie of genre?.movies"
+        class="p-2 bg-base-400 flex gap-2 max-w-[800px] max-h-[200px]"
+      >
+        <div class="">
+          <img
+            src="{{ movie.image_url }}"
+            class="max-w-full max-h-full"
+            alt="Постер фильма '{{ movie.name_ru }}'"
+          />
+        </div>
+        <div class="flex">
+          <h2 class="text">{{ movie.name_ru }}</h2>
+        </div>
+      </div>
+    </div>
+    <div class="basis-1/4 text-center">Настройки</div>
+  </div>
+</div>
