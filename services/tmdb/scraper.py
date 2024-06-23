@@ -3,13 +3,18 @@ import asyncio
 from pathlib import Path
 from pprint import pprint
 from datetime import datetime
+from abc import abstractmethod
+from typing import Any
 
+from pydantic import BaseModel
 from aiohttp import ClientResponse
 
 
 PROJ_DIR = Path(__file__).parent.parent.parent
 sys.path.append(str(PROJ_DIR))
 
+from services.models import TMDbMovieSDM, CollectionSDM, ProductionSDM
+from services.tmdb.settings import settings
 from services.base_scraper import BaseScraper
 from services.tmdb.notation import MovieDetails as MD
 
@@ -30,114 +35,94 @@ class MovieDoesNotExist(Exception):
     pass
 
 
-class Collection(object):
-    id: int
-    name_en: str
-    name_ru: str
+class AbstractFactory:
+    @abstractmethod
+    def create(self, **kwargs: dict[str, Any]) -> BaseModel:
+        pass
 
-    def __init__(
+
+class CollectionFactory(AbstractFactory):
+    def add_name(
         self,
-        id: int,
-        name_en: str | None = None,
-        name_ru: str | None = None,
-    ) -> None:
-        self.id = id
-        self.name_en = name_en
-        self.name_ru = name_ru
-
-    def set_name(self, name: str, lang: str) -> None:
-        if lang == "en-US":
-            self.name_en = name
-        elif lang == "ru":
-            self.name_ru = name
-        else:
-            raise ValueError("Unidentified language")
-
-    def __repr__(self) -> str:
-        return self.name_en
-
-
-class Production(object):
-    id: int
-    name: str
-    country: str
-    image_url: str
-
-    def __init__(
-        self,
-        id: int,
+        collection: CollectionSDM,
         name: str,
+        lang: str,
+    ) -> None:
+        name_en = collection.name_en
+        name_ru = collection.name_ru
+
+        if lang == "en-US":
+            name_en = name
+        elif lang == "ru":
+            name_ru = name
+
+        collection.name_en = name_en
+        collection.name_ru = name_ru
+
+    def create(
+        self,
+        tmdb_id: int,
+        name: str,
+        lang: str,
+    ) -> CollectionSDM:
+        name_ru = None
+        name_en = None
+
+        if lang == "en-US":
+            name_en = name
+        elif lang == "ru":
+            name_ru = name
+
+        return CollectionSDM(
+            tmdb_id=tmdb_id,
+            name_en=name_en,
+            name_ru=name_ru,
+        )
+
+
+class ProductionFactory(AbstractFactory):
+    def create(
+        self,
+        tmdb_id: int,
+        name_en: str,
         country: str,
         image_url: str,
-    ) -> None:
-        self.id = id
-        self.name = name
-        self.country = country
-        self.image_url = image_url
-
-    def __hash__(self) -> str:
-        return hash(self.name)
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Production):
-            return False
-        return self.__hash__() == other.__hash__()
-
-    def __repr__(self) -> str:
-        return f"{self.name}"
+    ) -> ProductionSDM:
+        return ProductionSDM(
+            tmdb_id=tmdb_id,
+            name_en=name_en,
+            country=country,
+            image_url=image_url,
+        )
 
 
-class TMDbMovieIntefrace(object):
-    imdb_mvid: str
-    tmdb_mvid: int
+class TMDbMovieFactory(AbstractFactory):
+    def __init__(self) -> None:
+        self.collection_factory = CollectionFactory()
+        self.production_factory = ProductionFactory()
 
-    image_url: str
-    tagline_en: str
-    overview_en: str
-
-    release_date: datetime
-    budget: int
-    revenue: int
-
-    rate: float
-    votes: int
-    popularity: int
-
-    collection: Collection | None
-    genres: list[str] | None
-    productions: list[Production] | None
-    countries: list[str] | None
-
-    title_ru: str
-    tagline_ru: str
-    overview_ru: str
-
-
-class TMDbMovie(TMDbMovieIntefrace):
-    def __init__(self, **kwargs) -> None:
-        self.tmdb_mvid = self.cast(self.get(MD.TMDB_MVID, **kwargs), int)
-        self.imdb_mvid = self.get(MD.IMDB_MVID, **kwargs)
-
-        self.image_url = self.image(self.get(MD.IMAGE_URL, **kwargs))
-        self.tagline_en = self.get(MD.TAGLINE, **kwargs)
-        self.overview_en = self.get(MD.OVERVIEW, **kwargs)
-
-        self.release_date = self.get_release_date(**kwargs)
-        self.budget = self.zero_to_none(self.cast(self.get(MD.BUDGET, **kwargs), int))
-        self.revenue = self.zero_to_none(self.cast(self.get(MD.REVENUE, **kwargs), int))
-
-        self.rate = self.zero_to_none(self.cast(self.get(MD.RATE, **kwargs), float))
-        self.votes = self.zero_to_none(self.cast(self.get(MD.VOTES, **kwargs), int))
-        self.popularity = self.cast(self.get(MD.POPULARITY, **kwargs), float)
-
-        self.collection = self.get_collection(**kwargs)
-        self.countries = self.get_countries(**kwargs)
-        self.productions = self.get_productions(**kwargs)
-        self.genres = self.get_genres(**kwargs)
-
-        self.title_ru = None
-        self.tagline_ru = None
-        self.overview_ru = None
+    def create(self, **kwargs: dict[str, Any]) -> TMDbMovieSDM:
+        return TMDbMovieSDM(
+            name_en=kwargs.get(MD.TITLE, None),
+            tmdb_mvid=self.cast(self.get(MD.TMDB_MVID, **kwargs), int),
+            imdb_mvid=self.get(MD.IMDB_MVID, **kwargs),
+            image_url=self.image(self.get(MD.IMAGE_URL, **kwargs)),
+            tagline_en=self.get(MD.TAGLINE, **kwargs),
+            overview_en=self.get(MD.OVERVIEW, **kwargs),
+            release_date=self.get_release_date(**kwargs),
+            budget=self.zero_to_none(self.cast(self.get(MD.BUDGET, **kwargs), int)),
+            revenue=self.zero_to_none(self.cast(self.get(MD.REVENUE, **kwargs), int)),
+            rate=self.zero_to_none(self.cast(self.get(MD.RATE, **kwargs), float)),
+            votes=self.zero_to_none(self.cast(self.get(MD.VOTES, **kwargs), int)),
+            popularity=self.cast(self.get(MD.POPULARITY, **kwargs), float),
+            collection=self.get_collection(**kwargs),
+            countries=self.get_countries(**kwargs),
+            productions=self.get_productions(**kwargs),
+            genres=self.get_genres(**kwargs),
+            title_ru=None,
+            tagline_ru=None,
+            overview_ru=None,
+        )
 
     def image(self, path: str | None) -> str | None:
         if path:
@@ -175,16 +160,16 @@ class TMDbMovie(TMDbMovieIntefrace):
         self,
         lang: str = "en-US",
         **kwargs,
-    ) -> Collection | None:
+    ) -> CollectionSDM | None:
         collection = None
         data: dict = self.get(MD.COLLECTION, **kwargs)
         if data:
             try:
-                name = self.get(MD.COLLECTION_NAME, **data)
-                collection = Collection(
-                    id=self.get(MD.COLLECTION_ID, **data),
+                collection = self.collection_factory.create(
+                    tmdb_id=self.get(MD.COLLECTION_ID, **data),
+                    name=self.get(MD.COLLECTION_NAME, **data),
+                    lang=lang,
                 )
-                collection.set_name(name, lang)
             except Exception as ex:
                 collection = None
                 print(ex)
@@ -210,7 +195,7 @@ class TMDbMovie(TMDbMovieIntefrace):
 
         return countries
 
-    def get_productions(self, **kwargs) -> list[Production] | None:
+    def get_productions(self, **kwargs) -> list[ProductionSDM] | None:
         productions = None
 
         production_data = self.get(MD.PRODUCTION, **kwargs)
@@ -220,9 +205,9 @@ class TMDbMovie(TMDbMovieIntefrace):
                 for data in production_data:
                     data: dict
 
-                    production = Production(
-                        id=self.cast(self.get(MD.PRODUCTION_ID, **data), int),
-                        name=self.get(MD.PRODUCTION_NAME, **data),
+                    production = self.production_factory.create(
+                        tmdb_id=self.cast(self.get(MD.PRODUCTION_ID, **data), int),
+                        name_en=self.get(MD.PRODUCTION_NAME, **data),
                         country=self.get(MD.PRODUCTION_COUNTRY, **data),
                         image_url=self.image(self.get(MD.PRODUCTION_IMAGE_URL, **data)),
                     )
@@ -286,14 +271,28 @@ class TMDbMovie(TMDbMovieIntefrace):
 
         pprint(data)
 
-    def __repr__(self) -> str:
-        return self.imdb_mvid
+    def add_ru_details(
+        self,
+        movie: TMDbMovieSDM,
+        **kwargs,
+    ) -> TMDbMovieSDM:
+        movie.name_ru = kwargs.get(MD.TITLE, None)
+        movie.tagline_ru = kwargs.get(MD.TAGLINE, None)
+        movie.overview_ru = kwargs.get(MD.OVERVIEW, None)
+
+        collection = kwargs.get(MD.COLLECTION, None)
+        if collection:
+            collection_name = collection.get(MD.COLLECTION_NAME, None)
+
+            self.collection_factory.add_name(
+                movie.collection,
+                collection_name,
+                "ru",
+            )
 
 
 class TMDbScraper(BaseScraper):
-    """Recommended limit is 45req/1s because of API limits"""
-
-    BASE_HEADERS = {"Content-Type": "application/json"}
+    """Recommended limit is 40r/1s because of API limits"""
 
     STATUSES = {
         200: None,
@@ -306,22 +305,34 @@ class TMDbScraper(BaseScraper):
         self,
         api_key: str,
         proxy: str = None,
-        max_rate: int = 49,
+        max_rate: int = 40,
         rate_period: int = 1,
         debug: bool = False,
     ) -> None:
         super().__init__(
-            api_key,
             proxy,
             max_rate,
             rate_period,
             debug,
         )
 
+        self.api_key = api_key
+        self.update_headers("Authorization", f"Bearer {api_key}")
+
+        self.movie_factory = TMDbMovieFactory()
+
+    @property
+    def custom_headers(self) -> dict:
+        return {
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-language": "en-US",
+        }
+
     def check_status(self, status: int) -> None:
         error = self.STATUSES.get(status, None)
         if error is not None:
-            raise error()
+            raise error
 
     async def extractor(self, response: ClientResponse):
         self.check_status(response.status)
@@ -341,7 +352,7 @@ class TMDbScraper(BaseScraper):
         URL = f"https://api.themoviedb.org/3/movie/{tmdb_mvid}?language={lang}"
         return await self.request(URL)
 
-    async def get_movie(self, imdb_mvid: str) -> TMDbMovie:
+    async def get_movie(self, imdb_mvid: str) -> TMDbMovieSDM:
         id_search = await self.find_by_imdb_id(imdb_mvid)
         movies = id_search["movie_results"]
 
@@ -350,42 +361,9 @@ class TMDbScraper(BaseScraper):
 
         tmdb_mvid = movies[0]["id"]
         en_movie_details = await self.get_movie_details(tmdb_mvid)
-        movie = TMDbMovie(**en_movie_details)
+        movie = self.movie_factory.create(**en_movie_details)
 
         ru_movie_details = await self.get_movie_details(tmdb_mvid, "ru")
-        movie.add_ru_details(**ru_movie_details)
+        self.movie_factory.add_ru_details(movie, **ru_movie_details)
 
         return movie
-
-
-async def test():
-    proxy = "38.170.252.236:9662@JQ7suq:TA3vLt"
-    api_key = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhZWIzNGQxNGJhZWEwM2JiZjRmYTVhZTkzNTdjYTllZSIsInN1YiI6IjY1YWQzODIyMjVjZDg1MDBlYTBjYjgzMyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.o7Q5t7MZiKC3SnXs2vYmdGSY6HWMg4PZdYcSMANKOSc"
-
-    scraper = TMDbScraper(api_key, proxy)
-
-    # movie = await scraper.get_movie("tt000")  ## Non-existent movie
-    movie = await scraper.get_movie("tt0133093")  ## Matrix
-    # movie = await scraper.get_movie("tt9911774")
-    # movie = await scraper.get_movie("tt9911196")
-    # movie = await scraper.get_movie("tt0133021")
-
-    print(movie)
-    print(movie.tagline_ru)
-    print(movie.tagline_en)
-
-    movie.show_data()
-
-
-async def main():
-    proxy = "38.170.252.236:9662@JQ7suq:TA3vLt"
-    api_key = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhZWIzNGQxNGJhZWEwM2JiZjRmYTVhZTkzNTdjYTllZSIsInN1YiI6IjY1YWQzODIyMjVjZDg1MDBlYTBjYjgzMyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.o7Q5t7MZiKC3SnXs2vYmdGSY6HWMg4PZdYcSMANKOSc"
-
-    scraper = TMDbScraper(api_key, proxy, 45, 1, True)
-
-    tasks = [asyncio.create_task(scraper.get_movie("tt0133093")) for _ in range(500)]
-    await asyncio.gather(*tasks)
-
-
-if __name__ == "__main__":
-    asyncio.run(test())

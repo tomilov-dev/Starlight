@@ -1,9 +1,7 @@
 import re
-import asyncio
 from datetime import datetime
 from typing import Awaitable
 
-import requests
 from aiolimiter import AsyncLimiter
 from aiohttp import ClientResponse, ClientSession, BasicAuth, ClientProxyConnectionError
 
@@ -27,18 +25,17 @@ class BaseScraper:
     rate_period: period in seconds (default 1 second)
     """
 
-    BASE_HEADERS = {}
-
     def __init__(
         self,
-        api_key: str = None,
         proxy: str = None,
         max_rate: int = 49,
         rate_period: float = 1,
         debug: bool = False,
     ) -> None:
         self.rate_limit = AsyncLimiter(max_rate, rate_period)
-        self._headers = self._get_headers(api_key)
+
+        self._headers = {}
+        self._set_headers()
 
         self._debug = debug
 
@@ -49,25 +46,27 @@ class BaseScraper:
                 proxy,
             )
 
-            self._check_proxy(proxy_url, proxy_username, proxy_password)
-
             self._proxy_url = proxy_url
             self._proxy_auth = BasicAuth(
                 login=proxy_username,
                 password=proxy_password,
             )
 
-    def _get_headers(
-        self,
-        api_key: str,
-    ) -> dict:
-        headers = self.BASE_HEADERS
-        if api_key:
-            self.add_api_header(headers, api_key)
+    @classmethod
+    async def new(
+        cls,
+        proxy: str = None,
+        max_rate: int = 49,
+        rate_period: float = 1,
+        debug: bool = False,
+    ) -> "BaseScraper":
+        self = BaseScraper(proxy, max_rate, rate_period, debug)
 
-        return headers
+        await self._check_proxy()
 
-    def _get_proxy_data(self, proxy: str) -> tuple[str, BasicAuth]:
+        return self
+
+    def _get_proxy_data(self, proxy: str) -> tuple[str, str, str]:
         self._check_proxy_structure(proxy)
 
         proxy_url = re.findall(r"([0-9a-z:.]+)@", proxy, re.IGNORECASE)[0]
@@ -79,30 +78,28 @@ class BaseScraper:
 
     def _check_proxy_structure(self, proxy: str) -> None:
         """Should be like '154.195.18.33:63004@GFNau6gw:9J9siqgu' this"""
+
         matched = PROXY_RX.match(proxy)
         if not matched:
             raise WrongProxyStructure(
                 "Should be like '154.195.18.33:63004@GFNau6gw:9J9siqgu' this"
             )
 
-    def _check_proxy(
-        self,
-        proxy_url: str,
-        proxy_username: str,
-        proxy_password: str,
-    ) -> bool:
+    async def _check_proxy(self) -> bool:
         URL = "https://example.com/"
-        proxies = {
-            "http": f"{proxy_url}@{proxy_username}:{proxy_password}",
-        }
 
-        data = requests.get(
-            URL,
-            proxies=proxies,
-            timeout=15,
-        ).text
+        try:
+            async with ClientSession() as session:
+                async with session.request(
+                    method="get",
+                    url=URL,
+                    proxy=self._proxy_url,
+                    proxy_auth=self._proxy_auth,
+                    headers=self._headers,
+                ) as response:
+                    return await self.extractor(response)
 
-        if "Example" not in data:
+        except ClientProxyConnectionError as ex:
             raise NotWorkingProxy("Proxy may have expired")
 
     def _request_limiter(coro: Awaitable):
@@ -114,14 +111,19 @@ class BaseScraper:
 
         return wrapper
 
-    def add_api_header(self, headers: dict, api_key: str) -> None:
-        """Add auth header"""
+    @property
+    def custom_headers(self) -> dict:
+        return {}
 
-        headers.update({"Authorization": f"Bearer {api_key}"})
+    def _set_headers(self) -> None:
+        for k, v in self.custom_headers.items():
+            self.update_headers(k, v)
+
+    def update_headers(self, key: str, value: str) -> None:
+        self._headers.update({key: value})
 
     async def extractor(self, response: ClientResponse):
-        data = await response.text()
-        return data
+        return await response.text()
 
     @_request_limiter
     async def request(self, url: str):
@@ -144,14 +146,3 @@ class BaseScraper:
 
             except ClientProxyConnectionError as ex:
                 print(ex)
-
-
-async def test():
-    scraper = BaseScraper()
-
-    d = await scraper.request("https://example.com/")
-    print(d)
-
-
-if __name__ == "__main__":
-    asyncio.run(test())

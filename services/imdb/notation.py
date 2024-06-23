@@ -36,3 +36,27 @@ class RATINGS(NOTATION):
     VOTES = "numVotes"
 
     WRATE = "wrate"
+
+
+class NAME(NOTATION):
+    NCONST = "nconst"
+    PRIMARY_NAME = "primaryName"
+    BIRTH_YEAR = "birthYear"
+    DEATH_YEAR = "deathYear"
+    PRIMARY_PROFESSION = "primaryProfession"
+    KNOWN_FOR_TITLES = "knownForTitles"
+
+
+class PRINCIPALS(NOTATION):
+    TCONST = "tconst"
+    ORDERING = "ordering"
+    NCONST = "nconst"
+    CATEGORY = "category"
+    JOB = "job"
+    CHARACHTERS = "characters"
+
+
+class CREW(NOTATION):
+    TCONST = "tconst"
+    DIRECTORS = "directors"
+    WRITERS = "writers"

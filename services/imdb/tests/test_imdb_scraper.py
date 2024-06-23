@@ -1,5 +1,4 @@
 import sys
-import asyncio
 from pathlib import Path
 
 import pytest
@@ -7,12 +6,14 @@ import pytest
 PROJ_DIR = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(PROJ_DIR))
 
-from services.imdb.scraper import IMDbScraper, IMDbMovieExtraInfo
+from services.imdb.scraper import IMDbScraper, IMDb404Error
 
 
 class TestCase:
     imdb_mvid = "tt0133093"
     tmdb_mvid = 603
+
+    imdb_not_existing = "tt011234"
 
 
 class TestIMDbScraper:
@@ -26,16 +27,20 @@ class TestIMDbScraper:
     @pytest.mark.asyncio
     async def test_get_movie(self):
         scraper = self.get_scraper()
-        movie: IMDbMovieExtraInfo = await scraper.get_movie(TestCase.imdb_mvid)
+        movie = await scraper.get_movie(TestCase.imdb_mvid)
 
         assert movie.imdb_mvid == TestCase.imdb_mvid
+        assert movie.error is None
         assert movie.image_url.startswith("https://")
 
+    @pytest.mark.asyncio
+    async def test_get_not_existing_movie(self):
+        scraper = self.get_scraper()
 
-async def hand_test():
-    test = TestIMDbScraper()
-    await test.test_get_movie()
+        error = None
+        try:
+            movie = await scraper.get_movie(TestCase.imdb_not_existing)
+        except IMDb404Error as exc:
+            error = exc
 
-
-if __name__ == "__main__":
-    asyncio.run(hand_test())
+        assert isinstance(error, IMDb404Error)

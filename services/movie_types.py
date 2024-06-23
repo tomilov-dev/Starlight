@@ -1,34 +1,30 @@
 """Content types according IMDb"""
 
+import sys
+from pathlib import Path
 
-class TypeObj:
-    """Simple wrapper for movie types"""
+ROOT_DIR = Path(__file__).parent.parent
+sys.path.append(str(ROOT_DIR))
 
-    def __init__(
-        self,
-        imdb: str,
-        name_en: str,
-        name_ru: str,
-    ) -> None:
-        self.imdb = imdb
-        self.name_en = name_en
-        self.name_ru = name_ru
-
-    def __repr__(self) -> str:
-        return f"{self.name_en}, {self.name_ru}"
+from services.models import MovieTypeSDM
 
 
-types: list[TypeObj] = [
-    TypeObj("movie", "Movie", "Фильм"),
-    TypeObj("short", "Short Movie", "Короткометражка"),
-    TypeObj("tvEpisode", "TV Episode", "Телевизионный эпизод"),
-    TypeObj("tvMiniSeries", "TV Mini Series", "Телевизионный мини-сериал"),
-    TypeObj("tvMovie", "TV Movie", "Телевизионный фильм"),
-    TypeObj("tvSeries", "TV Series", "Телевизионный сериал"),
-    TypeObj("tvShort", "TV Short", "Телевизионная короткометражка"),
-    TypeObj("tvSpecial", "TV Special", "Телевизионный спецвыпуск"),
-    TypeObj("video", "Video", "Видео"),
-    TypeObj("videoGame", "Video Game", "Видео-игра"),
+movie_types: list[MovieTypeSDM] = [
+    MovieTypeSDM(
+        imdb_name=d[0],
+        name_en=d[1],
+        name_ru=d[2],
+    )
+    for d in [
+        ("movie", "Movie", "Фильм"),
+        ("short", "Short Movie", "Короткометражка"),
+        ("tvEpisode", "TV Episode", "Телевизионный эпизод"),
+        ("tvMiniSeries", "TV Mini Series", "Телевизионный мини-сериал"),
+        ("tvMovie", "TV Movie", "Телевизионный фильм"),
+        ("tvSeries", "TV Series", "Телевизионный сериал"),
+        ("tvShort", "TV Short", "Телевизионная короткометражка"),
+        ("tvSpecial", "TV Special", "Телевизионный спецвыпуск"),
+        ("video", "Video", "Видео"),
+        ("videoGame", "Video Game", "Видео-игра"),
+    ]
 ]
-
-imdbTypesMapper = {t.imdb: t for t in types}

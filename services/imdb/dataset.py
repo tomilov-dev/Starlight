@@ -1,25 +1,44 @@
 import io
+import re
 import sys
 import gzip
 from pathlib import Path
+from pprint import pprint
 from functools import partial
-from typing import Generator, Callable, Dict, Iterable
+from abc import abstractmethod
+from typing import Generator, Callable, Dict, Iterable, Any
 
 import requests
 import pandas as pd
 import numpy as np
+from pydantic import BaseModel
 
 ROOT_DIR = Path(__file__).parent.parent
 PROJ_DIR = ROOT_DIR.parent
 sys.path.append(str(PROJ_DIR))
 
-from services.imdb.notation import AKAS, BASICS, RATINGS, TITLE_REGION as TR
+from services.imdb.settings import settings
+from services.models import IMDbMovieSDM, IMDbPersonSDM, IMDbPrincipalSDM
+from services.imdb.notation import (
+    AKAS,
+    BASICS,
+    RATINGS,
+    PRINCIPALS,
+    CREW,
+    NAME,
+    TITLE_REGION as TR,
+)
+
+ITERABLE_TYPE = (Iterable, set, list, tuple, pd.Series)
 
 LOCAL_DATA = ROOT_DIR / "imdb" / "local_data"
 
 BASICS_FILTERED = LOCAL_DATA / "title.basics.filtered.csv"
 RATINGS_FILTERED = LOCAL_DATA / "title.ratings.filtered.csv"
 AKAS_FILTERED = LOCAL_DATA / "title.akas.filtered.csv"
+
+PRINCIPALS_FILTERED = LOCAL_DATA / "title.principals.filtered.csv"
+PERSONS_FILTERED = LOCAL_DATA / "name.basics.filtered.csv"
 
 CHUNKSIZE = 100000
 TITLE_REGIONS = [TR.RU, TR.US]
@@ -41,50 +60,26 @@ ALL_TYPES = [
 ALLOWED_TYPES = ["movie"]
 
 
-class IMDbMovieInterface(object):
-    imdb_mvid: str
-    type: str
-    title_en: str
-    title_ru: str
-    slug: str
-    is_adult: bool
-    runtime: int
-    rate: float
-    wrate: float
-    votes: int
+class AbstractFactory:
+    @abstractmethod
+    def create(self, **kwargs: dict[str, Any]) -> BaseModel:
+        pass
 
-    genres: list[str]
+    def from_dataframe(
+        self,
+        dataframe: pd.DataFrame,
+    ) -> list[BaseModel]:
+        data = []
+        for _, series in dataframe.iterrows():
+            data.append(self.create(**dict(series)))
 
+        return data
 
-class IMDbMovie(IMDbMovieInterface):
-    def __init__(self, **kwargs) -> None:
-        kwargs = self.check_na(**kwargs)
-
-        self.imdb_mvid = kwargs[BASICS.TCONST]
-        self.type = kwargs.get(BASICS.TITLE_TYPE)
-
-        self.title_en = kwargs.get(TR.US, None)
-        if self.not_title(self.title_en):
-            self.title_en = kwargs.get(BASICS.PRIMARY_TITLE, None)
-        if self.not_title(self.title_en):
-            self.title_en = kwargs.get(BASICS.ORIGINAL_TITLE, None)
-        if self.not_title(self.title_en):
-            raise ValueError("No title")
-
-        self.title_ru = kwargs.get(TR.RU, None)
-        self.is_adult = kwargs.get(BASICS.IS_ADULT, None)
-        self.runtime = kwargs.get(BASICS.RUNTIME, None)
-
-        self.rate = kwargs.get(RATINGS.RATE, None)
-        self.wrate = kwargs.get(RATINGS.WRATE, None)
-        self.votes = kwargs.get(RATINGS.VOTES)
-
-        self.genres = self.get_genres(kwargs.get(BASICS.GENRES, ""))
-
-        self.init_slug = None
-
-    def set_init_slug(self, slug: str) -> None:
-        self.init_slug = slug
+    def str_to_list(self, key: str, **kwargs) -> list[str] | None:
+        values: str = kwargs.get(key, None)
+        if values:
+            values = [v.strip() for v in values.split(",")]
+        return values
 
     def check_na(self, **kwargs) -> dict:
         for key, value in kwargs.items():
@@ -92,11 +87,42 @@ class IMDbMovie(IMDbMovieInterface):
                 kwargs[key] = None
         return kwargs
 
-    def not_title(self, value) -> bool:
+
+class IMDbMovieFactory(AbstractFactory):
+    def create(self, **kwargs) -> IMDbMovieSDM:
+        kwargs = self.check_na(**kwargs)
+        return IMDbMovieSDM(
+            imdb_mvid=kwargs[BASICS.TCONST],
+            type=kwargs.get(BASICS.TITLE_TYPE),
+            name_en=self.get_name_en(**kwargs),
+            name_ru=kwargs.get(TR.RU, None),
+            is_adult=kwargs.get(BASICS.IS_ADULT, None),
+            runtime=kwargs.get(BASICS.RUNTIME, None),
+            rate=kwargs.get(RATINGS.RATE, None),
+            wrate=kwargs.get(RATINGS.WRATE, None),
+            votes=kwargs.get(RATINGS.VOTES),
+            genres=self.get_genres(kwargs.get(BASICS.GENRES, "")),
+            init_slug=None,
+            start_year=kwargs.get(BASICS.START_YEAR),
+            end_year=kwargs.get(BASICS.END_YEAR, None),
+        )
+
+    def get_name_en(self, **kwargs) -> str:
+        name_en = kwargs.get(TR.US, None)
+        if not self.is_title(name_en):
+            name_en = kwargs.get(BASICS.PRIMARY_TITLE, None)
+        if not self.is_title(name_en):
+            name_en = kwargs.get(BASICS.ORIGINAL_TITLE, None)
+        if not self.is_title(name_en):
+            raise ValueError("No title")
+
+        return name_en
+
+    def is_title(self, value) -> bool:
         if value:
             if isinstance(value, str):
-                return False
-        return True
+                return True
+        return False
 
     def get_genres(self, text: str) -> list[str]:
         genres = []
@@ -104,24 +130,31 @@ class IMDbMovie(IMDbMovieInterface):
             genres = list(set(map(lambda s: s.strip(), text.split(","))))
         return genres
 
-    @classmethod
-    def from_dataframe(cls, dataframe: pd.DataFrame) -> list[IMDbMovieInterface]:
-        data: list[IMDbMovieInterface] = []
-        for _, series in dataframe.iterrows():
-            data.append(cls(**dict(series)))
 
-        return data
-
-    def __repr__(self) -> str:
-        return self.title_en
-
-
-class IMDbPersonInterface(object):
-    pass
+class IMDbPersonFactory(AbstractFactory):
+    def create(self, **kwargs) -> IMDbPersonSDM:
+        kwargs = self.check_na(**kwargs)
+        return IMDbPersonSDM(
+            imdb_nmid=kwargs[NAME.NCONST],
+            name_en=kwargs[NAME.PRIMARY_NAME],
+            birth_y=kwargs.get(NAME.BIRTH_YEAR, None),
+            death_y=kwargs.get(NAME.DEATH_YEAR, None),
+            professions=self.str_to_list(NAME.PRIMARY_PROFESSION, **kwargs),
+            known_for_titles=self.str_to_list(NAME.KNOWN_FOR_TITLES, **kwargs),
+        )
 
 
-class IMDbPerson(IMDbPersonInterface):
-    pass
+class IMDbMoviePrincipalsFactory(AbstractFactory):
+    def create(self, **kwargs) -> IMDbPrincipalSDM:
+        kwargs = self.check_na(**kwargs)
+        return IMDbPrincipalSDM(
+            imdb_movie=kwargs[PRINCIPALS.TCONST],
+            imdb_person=kwargs[PRINCIPALS.NCONST],
+            ordering=kwargs[PRINCIPALS.ORDERING],
+            category=kwargs.get(PRINCIPALS.CATEGORY, None),
+            job=kwargs.get(PRINCIPALS.JOB, None),
+            characters=self.str_to_list(PRINCIPALS.CHARACHTERS, **kwargs),
+        )
 
 
 def calc_m(
@@ -173,17 +206,15 @@ class CustomFilter:
         self.reverse = reverse
 
     def filter(self, df: pd.DataFrame) -> pd.DataFrame:
-        iterable = (Iterable, set, list, tuple, pd.Series)
-
         if self.column in df.columns:
             if self.reverse:
-                if isinstance(self.filter_by, iterable):
+                if isinstance(self.filter_by, ITERABLE_TYPE):
                     df = df[~df[self.column].isin(self.filter_by)]
                 else:
                     df = df[df[self.column] != self.filter_by]
 
             else:
-                if isinstance(self.filter_by, iterable):
+                if isinstance(self.filter_by, ITERABLE_TYPE):
                     df = df[df[self.column].isin(self.filter_by)]
                 else:
                     df = df[df[self.column] == self.filter_by]
@@ -210,13 +241,25 @@ class IMDbDataSet(object):
         RATINGS: "https://datasets.imdbws.com/title.ratings.tsv.gz",
     }
 
+    def __init__(
+        self,
+        debug: bool | None = None,
+    ):
+        if debug is not None:
+            self.debug = debug
+        else:
+            self.debug = settings.DEBUG
+
     def _request_data(
         self,
         data_name: str,
         chunksize: int = CHUNKSIZE,
     ) -> Generator[pd.DataFrame, None, None]:
         if data_name not in self.MAPPER:
-            raise ValueError()
+            raise ValueError(
+                "Wrong data name. Should be in range: ",
+                list(self.MAPPER.keys()),
+            )
 
         response = requests.get(self.MAPPER[data_name], stream=True)
         if response.status_code == 200:
@@ -378,10 +421,9 @@ class IMDbDataSet(object):
     def get_movies(
         self,
         amount: int = 10000,
-        debug: bool = False,
-    ) -> list[IMDbMovie]:
+    ) -> list[IMDbMovieSDM]:
         # if debug - we use local filtered (small) dumps
-        if debug:
+        if self.debug:
             data = self.get_basics(BASICS_FILTERED)
             ratings = self.get_ratings(RATINGS_FILTERED)
             akas = self.get_akas(AKAS_FILTERED, title_regions=TITLE_REGIONS)
@@ -414,6 +456,7 @@ class IMDbDataSet(object):
         # filter films without any rate
         data = data[data[RATINGS.RATE].notna()]
 
+        # sorting by descending rating
         data = data.sort_values(by=[RATINGS.WRATE], ascending=False)
 
         # preprocess
@@ -427,10 +470,7 @@ class IMDbDataSet(object):
         data[RATINGS.WRATE] = data[RATINGS.WRATE].apply(to_float)
         data[RATINGS.VOTES] = data[RATINGS.VOTES].apply(to_int)
 
-        # temporary backup
-        # data[:amount].to_excel("check.xlsx", index=False)
-
-        return IMDbMovie.from_dataframe(
+        return IMDbMovieFactory().from_dataframe(
             data[:amount],
         )
 
@@ -438,33 +478,118 @@ class IMDbDataSet(object):
         self,
         local_path: str | None = None,
         chunksize: int = CHUNKSIZE,
-        mvids: list[str] = [],
-    ):
+        imdb_mvids: list[str] = None,
+    ) -> pd.DataFrame:
         def unpack_chunks(
             data_chunks: Generator[pd.DataFrame, None, None]
         ) -> pd.DataFrame:
             data: list[pd.DataFrame] = []
             for data_chunk in data_chunks:
+                if imdb_mvids:
+                    data_chunk = data_chunk[data_chunk[CREW.TCONST].isin(imdb_mvids)]
+
                 data.append(data_chunk)
 
             return pd.concat(data)
 
+        if imdb_mvids and not isinstance(imdb_mvids, (list, set, tuple, pd.Series)):
+            imdb_mvids = [imdb_mvids]
+
         return self._get_data(
-            self.RATINGS,
+            self.PRINCIPALS,
             local_path,
             chunksize,
             unpack_chunks=unpack_chunks,
         )
 
-    def get_actors(self, mvids: list[str] = []) -> list[IMDbPerson]:
-        crew = self.get_crew(
-            "/home/mainus/Projects/Starlight/starlight_backend/data/title.crew.tsv",
-            mvids=mvids,
+    def get_principals(
+        self,
+        local_path: str | None = None,
+        chunksize: int = CHUNKSIZE,
+        imdb_mvids: list[str] = None,
+        only_professions: bool = False,
+    ) -> pd.DataFrame:
+        def unpack_chunks(
+            data_chunks: Generator[pd.DataFrame, None, None]
+        ) -> pd.DataFrame:
+            data: list[pd.DataFrame] = []
+            for data_chunk in data_chunks:
+                if imdb_mvids:
+                    data_chunk = data_chunk[
+                        data_chunk[PRINCIPALS.TCONST].isin(imdb_mvids)
+                    ]
+                if only_professions:
+                    data_chunk = data_chunk[[PRINCIPALS.CATEGORY, PRINCIPALS.JOB]]
+
+                data.append(data_chunk)
+
+            return pd.concat(data)
+
+        if imdb_mvids and not isinstance(imdb_mvids, (list, set, tuple, pd.Series)):
+            imdb_mvids = [imdb_mvids]
+
+        return self._get_data(
+            self.PRINCIPALS,
+            local_path,
+            chunksize,
+            unpack_chunks=unpack_chunks,
         )
 
-        print(crew)
+    def get_names(
+        self,
+        local_path: str | None = None,
+        chunksize: int = CHUNKSIZE,
+        imdb_nmids: list[str] | None = None,
+    ) -> pd.DataFrame:
+        def unpack_chunks(
+            data_chunks: Generator[pd.DataFrame, None, None]
+        ) -> pd.DataFrame:
+            data: list[pd.DataFrame] = []
+            for data_chunk in data_chunks:
+                if imdb_nmids:
+                    data_chunk = data_chunk[data_chunk[NAME.NCONST].isin(imdb_nmids)]
 
+                data.append(data_chunk)
 
-if __name__ == "__main__":
-    ds = IMDbDataSet()
-    ds.get_actors()
+            return pd.concat(data)
+
+        if imdb_nmids and not isinstance(imdb_nmids, (list, set, tuple, pd.Series)):
+            imdb_nmids = [imdb_nmids]
+
+        return self._get_data(
+            self.PRINCIPALS,
+            local_path,
+            chunksize,
+            unpack_chunks=unpack_chunks,
+        )
+
+    def get_movie_crew(
+        self,
+        imdb_mvids: list[str],
+    ) -> tuple[list[IMDbPrincipalSDM], list[IMDbPersonSDM]]:
+        if self.debug:
+            principals = self.get_principals(
+                PRINCIPALS_FILTERED,
+                imdb_mvids=imdb_mvids,
+            )
+            imdb_nmids = list(set(principals[PRINCIPALS.NCONST]))
+
+            persons = self.get_names(
+                PERSONS_FILTERED,
+                imdb_nmids=imdb_nmids,
+            )
+
+        else:
+            raise ValueError("Not optimized: need >20gb RAM")
+
+            # principals = self.get_principals(imdb_mvids=imdb_mvids)
+            # imdb_nmids = list(set(principals[PRINCIPALS.NCONST]))
+            # persons = self.get_names(imdb_nmids=imdb_nmids)
+
+        principals = self.check_nulls(principals)
+        persons = self.check_nulls(persons)
+
+        principals_data = IMDbMoviePrincipalsFactory().from_dataframe(principals)
+        persons_data = IMDbPersonFactory().from_dataframe(persons)
+
+        return principals_data, persons_data

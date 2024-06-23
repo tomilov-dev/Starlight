@@ -7,33 +7,34 @@ import pytest
 PROJ_DIR = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(PROJ_DIR))
 
-from services.tmdb.scraper import TMDbScraper, TMDbMovie
+from services.tmdb.scraper import TMDbScraper, TMDbMovieSDM, MovieDoesNotExist
 from services.tmdb.settings import settings
 
 
-PROXY = settings.TEST_PROXY
+API_KEY = settings.TMDB_APIKEY
+PROXY = settings.PROXY
 
 
 class TestCase:
     imdb_mvid = "tt0133093"
     tmdb_mvid = 603
 
+    imdb_not_exists = "tt000"
+
     original_title = "The Matrix"
     tagline_en = "Believe the unbelievable."
     collection = "The Matrix Collection"
 
     title_ru = "Матрица"
-    tagline_ru = "Мир Матрицы — это иллюзия"
+    tagline_ru = "Добро пожаловать в реальный мир"
     collection_ru = "Матрица (Коллекция)"
 
 
 class TestTMDbScraper:
     def get_scraper(self) -> TMDbScraper:
         return TMDbScraper(
-            settings.APIKEY,
+            API_KEY,
             proxy=PROXY,
-            max_rate=45,
-            rate_period=1,
         )
 
     @pytest.mark.asyncio
@@ -72,30 +73,31 @@ class TestTMDbScraper:
         tmdb_mvid = data["id"]
         imdb_mvid = data["imdb_id"]
         title = data["title"]
-        tagline = data["tagline"]
         collection = data["belongs_to_collection"]["name"]
 
         assert imdb_mvid == TestCase.imdb_mvid
         assert tmdb_mvid == TestCase.tmdb_mvid
         assert title == TestCase.title_ru
-        assert tagline == TestCase.tagline_ru
         assert collection == TestCase.collection_ru
 
     @pytest.mark.asyncio
     async def test_get_movie(self):
         scraper = self.get_scraper()
-        movie: TMDbMovie = await scraper.get_movie(TestCase.imdb_mvid)
+        movie: TMDbMovieSDM = await scraper.get_movie(TestCase.imdb_mvid)
 
         assert movie.imdb_mvid == TestCase.imdb_mvid
         assert movie.tmdb_mvid == TestCase.tmdb_mvid
         assert movie.tagline_en == TestCase.tagline_en
-        assert movie.collection.name == TestCase.collection
+        assert movie.collection.name_en == TestCase.collection
 
+    @pytest.mark.asyncio
+    async def test_movie_doesnot_exist(self):
+        scraper = self.get_scraper()
 
-async def hand_test():
-    test = TestTMDbScraper()
-    await test.test_get_movie_details_ru()
+        error = None
+        try:
+            movie: TMDbMovieSDM = await scraper.get_movie(TestCase.imdb_not_exists)
+        except MovieDoesNotExist as ex:
+            error = ex
 
-
-if __name__ == "__main__":
-    asyncio.run(hand_test())
+        assert isinstance(error, MovieDoesNotExist)

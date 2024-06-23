@@ -1,48 +1,48 @@
 """Genre Types from IMDb & TMDb"""
 
+import sys
+from pathlib import Path
 
-class GenreObj:
-    """Simple wrapper for genres"""
+ROOT_DIR = Path(__file__).parent.parent
+sys.path.append(str(ROOT_DIR))
 
-    def __init__(
-        self,
-        imdb: str,
-        slug: str,
-        tmdb: str,
-        name_ru: str,
-    ) -> None:
-        self.imdb = imdb
-        self.slug = slug
-        self.tmdb = tmdb
-        self.name_ru = name_ru
+from services.models import GenreSDM
 
 
-genres: list[GenreObj] = [
-    GenreObj("Short", "short", None, "Короткий фильм"),
-    GenreObj("Talk-Show", "talk-show", None, "Разговорное шоу"),
-    GenreObj("Adult", "adult", None, "Для взрослых"),
-    GenreObj("Game-Show", "game-show", None, "Игровое шоу"),
-    GenreObj("Reality-TV", "reality-tv", None, "Реалити шоу"),
-    GenreObj("News", "news", None, "Новости"),
-    GenreObj("Horror", "horror", "Horror", "Ужасы"),
-    GenreObj("Musical", "musical", None, "Мьюзикл"),
-    GenreObj("Sport", "sport", None, "Спорт"),
-    GenreObj("Documentary", "documentary", "Documentary", "Документальное кино"),
-    GenreObj("Music", "music", "Music", "Музыкальный фильм"),
-    GenreObj("Western", "western", "Western", "Вестерн"),
-    GenreObj("Comedy", "comedy", "Comedy", "Комедия"),
-    GenreObj("Animation", "animation", "Animation", "Мультфильм"),
-    GenreObj("Family", "family", "Family", "Семейное кино"),
-    GenreObj("Fantasy", "fantasy", "Fantasy", "Фэнтези"),
-    GenreObj("War", "war", "War", "Военный"),
-    GenreObj("Thriller", "thriller", "Thriller", "Триллер"),
-    GenreObj("Mystery", "mystery", "Mystery", "Мистика"),
-    GenreObj("Romance", "romance", "Romance", "Романтика"),
-    GenreObj("Sci-Fi", "sci-fi", "Science Fiction", "Фантастика"),
-    GenreObj("Biography", "biography", None, "Биография"),
-    GenreObj("History", "history", "History", "Исторический"),
-    GenreObj("Adventure", "adventure", "Adventure", "Приключения"),
-    GenreObj("Action", "action", "Action", "Экшен"),
-    GenreObj("Crime", "crime", "Crime", "Криминал"),
-    GenreObj("Drama", "drama", "Drama", "Драма"),
+genres: list[GenreSDM] = [
+    GenreSDM(
+        name_en=d[0],
+        slug=d[1],
+        tmdb_name=d[2],
+        name_ru=d[3],
+    )
+    for d in [
+        ("Short", "short", None, "Короткий фильм"),
+        ("Talk-Show", "talk-show", None, "Разговорное шоу"),
+        ("Adult", "adult", None, "Для взрослых"),
+        ("Game-Show", "game-show", None, "Игровое шоу"),
+        ("Reality-TV", "reality-tv", None, "Реалити шоу"),
+        ("News", "news", None, "Новости"),
+        ("Horror", "horror", "Horror", "Ужасы"),
+        ("Musical", "musical", None, "Мьюзикл"),
+        ("Sport", "sport", None, "Спорт"),
+        ("Documentary", "documentary", "Documentary", "Документальное кино"),
+        ("Music", "music", "Music", "Музыкальный фильм"),
+        ("Western", "western", "Western", "Вестерн"),
+        ("Comedy", "comedy", "Comedy", "Комедия"),
+        ("Animation", "animation", "Animation", "Мультфильм"),
+        ("Family", "family", "Family", "Семейное кино"),
+        ("Fantasy", "fantasy", "Fantasy", "Фэнтези"),
+        ("War", "war", "War", "Военный"),
+        ("Thriller", "thriller", "Thriller", "Триллер"),
+        ("Mystery", "mystery", "Mystery", "Мистика"),
+        ("Romance", "romance", "Romance", "Романтика"),
+        ("Sci-Fi", "sci-fi", "Science Fiction", "Фантастика"),
+        ("Biography", "biography", None, "Биография"),
+        ("History", "history", "History", "Исторический"),
+        ("Adventure", "adventure", "Adventure", "Приключения"),
+        ("Action", "action", "Action", "Экшен"),
+        ("Crime", "crime", "Crime", "Криминал"),
+        ("Drama", "drama", "Drama", "Драма"),
+    ]
 ]

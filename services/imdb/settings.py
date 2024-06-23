@@ -7,8 +7,7 @@ PROJ_DIR = Path(__file__).parent.parent.parent
 
 
 class Settings(BaseSettings):
-    PROXY: str
-    TMDB_APIKEY: str
+    DEBUG: bool
 
     model_config = SettingsConfigDict(
         env_file=".env",

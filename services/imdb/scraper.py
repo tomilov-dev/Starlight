@@ -1,9 +1,11 @@
 import re
-from pathlib import Path
 import sys
 import asyncio
+from pathlib import Path
+
 import aiohttp
 from bs4 import BeautifulSoup as soup
+from tqdm.asyncio import tqdm_asyncio
 
 
 PROJ_DIR = Path(__file__).parent.parent.parent
@@ -11,6 +13,7 @@ sys.path.append(str(PROJ_DIR))
 
 
 from services.base_scraper import BaseScraper
+from services.models import IMDbMovieExtraInfo
 
 
 class IMDbEmptyResponeError(Exception):
@@ -32,13 +35,14 @@ class IMDbMovieExtraInfoInterface(object):
     error: bool
 
 
-class IMDbMovieExtraInfo(IMDbMovieExtraInfoInterface):
-    def __init__(self, **kwargs) -> None:
+class IMDBMovieExtraInfoFactory:
+    def create(self, **kwargs) -> IMDbMovieExtraInfo:
         self._error = self._check_error(**kwargs)
-        self.imdb_mvid = kwargs.get("imdb_mvid")
-
-        # if error in response: return None
-        self.image_url = self._get("image_url", **kwargs)
+        return IMDbMovieExtraInfo(
+            error=self._error,
+            imdb_mvid=kwargs.get("imdb_mvid"),
+            image_url=self._get("image_url", **kwargs),
+        )
 
     def _get(self, key: str, **kwargs):
         data = None
@@ -51,38 +55,33 @@ class IMDbMovieExtraInfo(IMDbMovieExtraInfoInterface):
             return kwargs.get("error")
         return None
 
-    @property
-    def error(self) -> bool:
-        return self._error is not None
-
-    def __str__(self) -> str:
-        return self.imdb_mvid
-
 
 class IMDbScraper(BaseScraper):
-    """Recommended limit is 10r/1s and lower"""
-
-    BASE_HEADERS = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36",
-        "accept": "text/html",
-        "accept-language": "en-US",
-    }
+    """Recommended limit is 5r/1s and lower"""
 
     def __init__(
         self,
-        api_key: str = None,
         proxy: str = None,
-        max_rate: int = 49,
+        max_rate: int = 5,
         rate_period: int = 1,
         debug: bool = False,
     ) -> None:
         super().__init__(
-            api_key,
             proxy,
             max_rate,
             rate_period,
             debug,
         )
+
+        self.factory = IMDBMovieExtraInfoFactory()
+
+    @property
+    def custom_headers(self) -> dict:
+        return {
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-language": "en-US",
+        }
 
     async def extractor(self, response: aiohttp.ClientResponse):
         data = await response.text()
@@ -122,17 +121,17 @@ class IMDbScraper(BaseScraper):
         self._check_response(movie_html, imdb_mvid)
 
         movie_data = self._parse_movie(movie_html, movie_data)
-        return IMDbMovieExtraInfo(**movie_data)
+        return self.factory.create(**movie_data)
 
 
-async def test():
+async def LoadTesting():
     scraper = IMDbScraper(
-        max_rate=10,
+        max_rate=5,
         rate_period=1,
     )
 
-    tasks = [asyncio.create_task(scraper.get_movie("tt0078748")) for _ in range(1)]
-    moviesInfo = await asyncio.gather(*tasks)
+    tasks = [asyncio.create_task(scraper.get_movie("tt0078748")) for _ in range(10000)]
+    moviesInfo = await tqdm_asyncio.gather(*tasks)
 
     for movieInfo in moviesInfo:
         movieInfo: IMDbMovieExtraInfo
@@ -141,4 +140,4 @@ async def test():
 
 
 if __name__ == "__main__":
-    asyncio.run(test())
+    asyncio.run(LoadTesting())
