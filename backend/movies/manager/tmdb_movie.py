@@ -7,8 +7,6 @@ from tqdm.asyncio import tqdm_asyncio
 from sqlalchemy.exc import IntegrityError, InvalidRequestError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from collections import Counter
-
 ROOT_DIR = Path(__file__).parent.parent
 PROJ_DIR = ROOT_DIR.parent
 sys.path.append(str(ROOT_DIR))
@@ -126,7 +124,11 @@ class TMDbMovieManager(DatabaseManager):
         if not movie.genres:
             return None
 
-        genres = [self.genres[gn] for gn in movie.genres]
+        genres = [
+            self.genres.get(gn, None)
+            for gn in movie.genres
+            if self.genres.get(gn, None) is not None
+        ]
         movie_genres = [
             MovieGenreORM(imdb_movie_id=imdb_id, genre_id=g.id) for g in genres
         ]
@@ -217,10 +219,14 @@ class TMDbMovieManager(DatabaseManager):
             await self.add_tmdb_genres(movie_sdm, imdb_id)
             await self.add_movie_countries(movie_sdm, imdb_id, tmdb_id)
 
-            tasks = [self.production_manager.goc(p) for p in movie_sdm.productions]
-            productions = await asyncio.gather(*tasks)
+            if movie_sdm.productions:
+                tasks = [
+                    asyncio.create_task(self.production_manager.goc(p))
+                    for p in movie_sdm.productions
+                ]
+                productions = await asyncio.gather(*tasks)
+                await self.add_movie_productions(productions, imdb_id, tmdb_id)
 
-            await self.add_movie_productions(productions, imdb_id, tmdb_id)
             await self.mark_up(movie_sdm.imdb_mvid)
 
         except IntegrityError as ex:
@@ -235,7 +241,10 @@ class TMDbMovieManager(DatabaseManager):
         movie_sdms: list[TMDbMovieSDM],
     ) -> None:
         try:
-            tasks = [self.add(movie_sdm, False) for movie_sdm in movie_sdms]
+            tasks = [
+                asyncio.create_task(self.add(movie_sdm, False))
+                for movie_sdm in movie_sdms
+            ]
             results = await asyncio.gather(*tasks)
 
             return results
@@ -244,13 +253,21 @@ class TMDbMovieManager(DatabaseManager):
             self._deinitialize()
 
 
+async def get_movie(imdb_movie: IMDbMovieORM) -> TMDbMovieSDM | None:
+    try:
+        return await SCRAPER.get_movie(imdb_movie.imdb_mvid)
+    except MovieDoesNotExist:
+        pass
+
+
 async def tmdb_movies_init():
     manager = TMDbMovieManager()
 
     imdb_movies = await manager.get_unprocessed_movies()
 
-    tasks = [SCRAPER.get_movie(imdb_movie.imdb_mvid) for imdb_movie in imdb_movies]
+    tasks = [asyncio.create_task(get_movie(imdb_movie)) for imdb_movie in imdb_movies]
     movies = await tqdm_asyncio.gather(*tasks)
+    movies = [m for m in movies if m is not None]
 
     await manager.add_many(movies)
 

@@ -111,16 +111,16 @@ class TMDbMovieSDM(
     tmdb_mvid: int
 
     image_url: str
-    tagline_en: str
-    overview_en: str
+    tagline_en: str | None = None
+    overview_en: str | None = None
 
     release_date: datetime
-    budget: int
-    revenue: int
+    budget: int | None = None
+    revenue: int | None = None
 
-    rate: float
-    votes: int
-    popularity: float
+    rate: float | None = None
+    votes: int | None = None
+    popularity: float | None = None
 
     collection: CollectionSDM | None
     genres: list[str] | None

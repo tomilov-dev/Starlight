@@ -102,6 +102,11 @@ class TMDbMovieFactory(AbstractFactory):
         self.production_factory = ProductionFactory()
 
     def create(self, **kwargs: dict[str, Any]) -> TMDbMovieSDM:
+        # tmdb_mvid = self.cast(self.get(MD.TMDB_MVID, **kwargs), int)
+        # imdb_mvid = self.get(MD.IMDB_MVID, **kwargs)
+        # tagline_en = self.get(MD.TAGLINE, **kwargs)
+        # print(tmdb_mvid, imdb_mvid, tagline_en)
+
         return TMDbMovieSDM(
             name_en=kwargs.get(MD.TITLE, None),
             tmdb_mvid=self.cast(self.get(MD.TMDB_MVID, **kwargs), int),

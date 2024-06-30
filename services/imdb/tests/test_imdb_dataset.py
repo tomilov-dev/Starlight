@@ -50,5 +50,5 @@ class TestIMDbDataset:
         assert person.name_ru == None
         assert person.init_slug == None
         assert person.birth_y == 1937
-        assert person.professions == None
+        assert person.professions == ["actor", "producer", "director"]
         assert "tt0097239" in person.known_for_titles

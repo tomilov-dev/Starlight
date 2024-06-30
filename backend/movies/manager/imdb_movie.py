@@ -197,7 +197,7 @@ async def imdb_movies_init():
     dataset = IMDbDataSet(debug=True)
     manager = IMDbMovieManager()
 
-    imdb_movies: list[IMDbMovieSDM] = dataset.get_movies(10)
+    imdb_movies: list[IMDbMovieSDM] = dataset.get_movies(1000)
 
     await manager.add_many(imdb_movies)
 
