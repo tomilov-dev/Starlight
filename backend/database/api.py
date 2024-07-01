@@ -83,7 +83,7 @@ class DatabaseBatchORM(DatabaseORM):
     def batching(
         self,
         array: list[object],
-    ) -> Generator[Any, Any, Any]:
+    ) -> Generator[Any, Any, list[object]]:
         """Divide the array in batches"""
 
         for i in range(0, len(array), MAX_BATCH_SIZE):
@@ -110,7 +110,10 @@ class DatabaseBatchORM(DatabaseORM):
     ) -> None:
         """Async Batch Insertion: divide the array in batches and upload 'em"""
 
-        tasks = [self.__insert_batch(b, session, flush) for b in self.batching(records)]
+        tasks = [
+            asyncio.create_task(self.__insert_batch(b, session, flush))
+            for b in self.batching(records)
+        ]
         await asyncio.gather(*tasks)
 
     async def __goc_batch(
@@ -141,7 +144,10 @@ class DatabaseBatchORM(DatabaseORM):
         filter_keys: list[Any] = None,
     ) -> list[Base] | None:
         table = type(records[0])
-        tasks = [self.__goc_batch(table, b, session) for b in self.batching(records)]
+        tasks = [
+            asyncio.create_task(self.__goc_batch(table, b, session))
+            for b in self.batching(records)
+        ]
         await asyncio.gather(*tasks)
 
         if filter_field is None or filter_keys is None:

@@ -162,7 +162,10 @@ class IMDbMovieManager(DatabaseManager):
         """Default Implementation: Try to Insert objects"""
 
         try:
-            tasks = [self.add(movie_sdm, False) for movie_sdm in movie_sdms]
+            tasks = [
+                asyncio.create_task(self.add(movie_sdm, False))
+                for movie_sdm in movie_sdms
+            ]
             results = await asyncio.gather(*tasks)
 
             return results

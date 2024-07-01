@@ -52,7 +52,7 @@ class IMDbMovieExtraManager(DatabaseManager):
         self,
         extra_sdms: list[IMDbMovieExtraInfo],
     ) -> None:
-        tasks = [self.add(extra_sdm) for extra_sdm in extra_sdms]
+        tasks = [asyncio.create_task(self.add(extra_sdm)) for extra_sdm in extra_sdms]
         await asyncio.gather(*tasks)
 
 

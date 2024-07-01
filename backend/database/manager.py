@@ -237,7 +237,10 @@ class DatabaseManager(AbstractDatabaseManager):
         **filters,
     ) -> Base:
         async with self.dbapi.session as session:
-            tasks = [self.goc(obj, session, **filters) for obj in objects]
+            tasks = [
+                asyncio.create_task(self.goc(obj, session, **filters))
+                for obj in objects
+            ]
             return await asyncio.gather(*tasks)
 
     async def add(
@@ -261,7 +264,7 @@ class DatabaseManager(AbstractDatabaseManager):
     ) -> list[Base | None]:
         """Default Implementation: Try to Insert objects"""
 
-        tasks = [self.add(obj) for obj in objects]
+        tasks = [asyncio.create_task(self.add(obj)) for obj in objects]
         return await asyncio.gather(*tasks)
 
     async def add_batch(
@@ -278,7 +281,7 @@ class DatabaseManager(AbstractDatabaseManager):
         async with self.dbapi.session as session:
             await self.dbapi.insertb_r(orms, session)
             if refresh:
-                tasks = [session.refresh(orm) for orm in orms]
+                tasks = [asyncio.create_task(session.refresh(orm)) for orm in orms]
                 await asyncio.gather(*tasks)
 
         return orms

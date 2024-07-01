@@ -245,9 +245,7 @@ class TMDbMovieManager(DatabaseManager):
                 asyncio.create_task(self.add(movie_sdm, False))
                 for movie_sdm in movie_sdms
             ]
-            results = await asyncio.gather(*tasks)
-
-            return results
+            return await asyncio.gather(*tasks)
 
         finally:
             self._deinitialize()

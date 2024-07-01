@@ -151,7 +151,7 @@ class DatabaseCoreORM:
         3. Need to pass AT LEAST ONE filter
         """
 
-        if filters == {}:
+        if filters == {} or not filters:
             raise ValueError(
                 "Need to pass at least one filter for check data existance"
             )
@@ -221,6 +221,7 @@ class DatabaseCoreORM:
         session.add(record)
         if flush:
             await session.flush()
+        await session.commit()
 
     async def insertcr(
         self,
