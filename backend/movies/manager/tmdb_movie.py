@@ -65,7 +65,7 @@ class TMDbMovieManager(DatabaseManager):
         self.initialized = False
 
     async def _initialize(self) -> None:
-        async with self.dbapi.session as session:
+        async with self.dbapi.session() as session:
             self.genres = {
                 g.tmdb_name: g for g in await self.dbapi.get(GenreORM, session)
             }
@@ -120,6 +120,7 @@ class TMDbMovieManager(DatabaseManager):
         self,
         movie: TMDbMovieSDM,
         imdb_id: int,
+        sess: AsyncSession | None = None,
     ) -> None:
         if not movie.genres:
             return None
@@ -133,7 +134,7 @@ class TMDbMovieManager(DatabaseManager):
             MovieGenreORM(imdb_movie_id=imdb_id, genre_id=g.id) for g in genres
         ]
 
-        async with self.dbapi.session as session:
+        async with self.dbapi.session(sess) as session:
             await self.dbapi.gocb_r(movie_genres, session)
 
     async def add_movie_countries(
@@ -141,6 +142,7 @@ class TMDbMovieManager(DatabaseManager):
         movie: TMDbMovieSDM,
         imdb_id: int,
         tmdb_id: int,
+        sess: AsyncSession | None = None,
     ) -> None:
         if not movie.countries:
             return
@@ -152,7 +154,7 @@ class TMDbMovieManager(DatabaseManager):
             for c in countries
         ]
 
-        async with self.dbapi.session as session:
+        async with self.dbapi.session(sess) as session:
             await self.dbapi.gocb_r(movie_countries, session)
 
     async def add_movie_productions(
@@ -160,6 +162,7 @@ class TMDbMovieManager(DatabaseManager):
         productions: ProductionCompanyORM,
         imdb_id: int,
         tmdb_id: int,
+        sess: AsyncSession | None = None,
     ) -> None:
         mpcs = [
             MovieProductionORM(
@@ -169,11 +172,15 @@ class TMDbMovieManager(DatabaseManager):
             if p is not None
         ]
 
-        async with self.dbapi.session as session:
+        async with self.dbapi.session(sess) as session:
             await self.dbapi.gocb_r(mpcs, session)
 
-    async def mark_up(self, imdb_mvid: str) -> None:
-        async with self.dbapi.session as session:
+    async def mark_up(
+        self,
+        imdb_mvid: str,
+        sess: AsyncSession | None = None,
+    ) -> None:
+        async with self.dbapi.session(sess) as session:
             await self.dbapi.update(
                 IMDbMovieORM,
                 session,
@@ -185,11 +192,12 @@ class TMDbMovieManager(DatabaseManager):
     async def add_collection(
         self,
         movie_sdm: TMDbMovieSDM,
+        sess: AsyncSession | None = None,
     ) -> MovieCollectionORM | None:
         if not movie_sdm.collection:
             return None
 
-        async with self.dbapi.session as session:
+        async with self.dbapi.session(sess) as session:
             collection = MovieCollectionORM.from_pydantic(movie_sdm.collection)
             collection = await self.dbapi.goc_r(collection, session)
             return collection
@@ -199,35 +207,46 @@ class TMDbMovieManager(DatabaseManager):
         self,
         movie_sdm: TMDbMovieSDM,
         deinitialize: bool = True,
+        sess: AsyncSession | None = None,
     ) -> None:
         try:
-            async with self.dbapi.session as session:
+            async with self.dbapi.session(sess) as session:
                 imdb_ids = await self.imdb_manager.get(
                     IMDbMovieORM.id,
                     imdb_mvid=movie_sdm.imdb_mvid,
                 )
                 imdb_id = imdb_ids[0].id
 
-            collection = await self.add_collection(movie_sdm)
-            collection_id = collection.id if collection else None
+                collection = await self.add_collection(movie_sdm, sess=session)
+                collection_id = collection.id if collection else None
 
-            tmdb = self.create_orm_instance(movie_sdm, imdb_id, collection_id)
-            async with self.dbapi.session as session:
+                tmdb = self.create_orm_instance(movie_sdm, imdb_id, collection_id)
                 await self.dbapi.insertcr(tmdb, session)
                 tmdb_id = tmdb.id
 
-            await self.add_tmdb_genres(movie_sdm, imdb_id)
-            await self.add_movie_countries(movie_sdm, imdb_id, tmdb_id)
+                await self.add_tmdb_genres(movie_sdm, imdb_id, sess=session)
+                await self.add_movie_countries(
+                    movie_sdm,
+                    imdb_id,
+                    tmdb_id,
+                    sess=session,
+                )
+
+                await self.mark_up(movie_sdm.imdb_mvid, sess=session)
 
             if movie_sdm.productions:
-                tasks = [
-                    asyncio.create_task(self.production_manager.goc(p))
-                    for p in movie_sdm.productions
-                ]
-                productions = await asyncio.gather(*tasks)
-                await self.add_movie_productions(productions, imdb_id, tmdb_id)
-
-            await self.mark_up(movie_sdm.imdb_mvid)
+                async with self.dbapi.session() as session:
+                    ### Call with new session
+                    tasks = [
+                        asyncio.create_task(
+                            self.production_manager.goc(p, sess=session)
+                        )
+                        for p in movie_sdm.productions
+                    ]
+                    productions = await asyncio.gather(*tasks)
+                    await self.add_movie_productions(
+                        productions, imdb_id, tmdb_id, sess=session
+                    )
 
         except IntegrityError as ex:
             print(ex)
@@ -262,6 +281,7 @@ async def tmdb_movies_init():
     manager = TMDbMovieManager()
 
     imdb_movies = await manager.get_unprocessed_movies()
+    # imdb_movies = imdb_movies[:10]
 
     tasks = [asyncio.create_task(get_movie(imdb_movie)) for imdb_movie in imdb_movies]
     movies = await tqdm_asyncio.gather(*tasks)

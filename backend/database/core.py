@@ -1,5 +1,5 @@
 import sys
-import hashlib
+import asyncio
 from typing import Any
 from pathlib import Path
 from pydantic import BaseModel
@@ -98,8 +98,9 @@ session_factory = get_sessionfactory(engine)
 class SessionHandler:
     def __init__(
         self,
-        session: AsyncSession | None,
+        session: AsyncSession | None = None,
     ) -> None:
+        self.__session_created: bool = False
         if session and not isinstance(session, AsyncSession):
             raise ValueError(f"Session should be AsyncSession. Passed: {session}")
 
@@ -108,10 +109,14 @@ class SessionHandler:
     async def __aenter__(self):
         if self.session is None:
             self.session = session_factory()
+            self.__session_created = True
         return self.session
 
     async def __aexit__(self, exc_type, exc, tb):
-        await self.session.close()
+        if self.__session_created:
+            task = asyncio.create_task(self.session.close())
+            await asyncio.shield(task)
+            self.__session_created = False
 
         if exc_type:
             return False
@@ -133,9 +138,8 @@ class DatabaseCoreORM:
             raise ValueError("Session factory should be asynchronous!")
         self.session_factory = session_factory
 
-    @property
-    def session(self) -> AsyncSession:
-        return self.session_factory()
+    def session(self, session: AsyncSession | None = None) -> AsyncSession:
+        return SessionHandler(session)
 
     async def exists(
         self,
@@ -153,7 +157,7 @@ class DatabaseCoreORM:
 
         if filters == {} or not filters:
             raise ValueError(
-                "Need to pass at least one filter for check data existance"
+                "Need to pass at least one filter for check data existence"
             )
 
         query = select(select(table).filter_by(**filters).exists())
@@ -250,13 +254,11 @@ class DatabaseCoreORM:
 
         insert_stmt = Insert(table).values(**data)
         do_nothing_stmt = insert_stmt.on_conflict_do_nothing()
-        await session.execute(do_nothing_stmt)
-        await session.commit()
+        returning = do_nothing_stmt.returning(*table.__table__.columns)
 
-        filters = {k: v for k, v in data.items()}
-        query = select(table).filter_by(**filters)
-        result = await session.execute(query)
-        return result.scalars().first()
+        result = await session.execute(returning)
+        await session.commit()
+        return result.fetchone()
 
     async def update_r(
         self,

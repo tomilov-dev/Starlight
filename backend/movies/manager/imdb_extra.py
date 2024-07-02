@@ -39,7 +39,7 @@ class IMDbMovieExtraManager(DatabaseManager):
 
     async def add(self, extra_sdm: IMDbMovieExtraInfo) -> None:
         if extra_sdm.error is None:
-            async with self.dbapi.session as session:
+            async with self.dbapi.session() as session:
                 await self.dbapi.update(
                     IMDbMovieORM,
                     session,

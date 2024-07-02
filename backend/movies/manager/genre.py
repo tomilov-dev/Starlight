@@ -5,6 +5,7 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from typing import Any
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 ROOT_DIR = Path(__file__).parent.parent
 PROJ_DIR = ROOT_DIR.parent
@@ -24,6 +25,7 @@ class GenreManager(DatabaseManager):
         slug: str,
         page: int = 1,
         page_size: int = 10,
+        sess: AsyncSession | None = None,
     ) -> list[Base] | list[tuple[Any]]:
         gq = select(GenreORM)
         gq = gq.where(GenreORM.slug == slug)
@@ -36,7 +38,7 @@ class GenreManager(DatabaseManager):
         mq = mq.where(GenreORM.slug == slug)
         mq = mq.limit(page_size).offset((page - 1) * page_size)
 
-        async with self.dbapi.session as session:
+        async with self.dbapi.session(sess) as session:
             result = await session.execute(gq)
             genre = result.scalars().first()
 

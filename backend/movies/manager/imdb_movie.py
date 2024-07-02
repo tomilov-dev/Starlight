@@ -55,8 +55,11 @@ class IMDbMovieManager(DatabaseManager):
 
         self.initialized = False
 
-    async def _initialize(self, full_init: bool) -> None:
-        async with self.dbapi.session as session:
+    async def _initialize(
+        self,
+        full_init: bool,
+    ) -> None:
+        async with self.dbapi.session() as session:
             self.movie_types = {
                 mt.name_en.lower(): mt
                 for mt in await self.dbapi.get(MovieTypeORM, session)
@@ -115,7 +118,7 @@ class IMDbMovieManager(DatabaseManager):
         self,
         movie_sdm: IMDbMovieSDM,
         imdb: IMDbMovieORM,
-        session: AsyncSession,
+        sess: AsyncSession | None = None,
     ) -> None:
         data = [
             MovieGenreORM(
@@ -125,27 +128,29 @@ class IMDbMovieManager(DatabaseManager):
             for gn in movie_sdm.genres
         ]
 
-        await super().goc_batch(data, session)
+        async with self.dbapi.session(sess) as session:
+            await self.dbapi.gocb_r(data, session)
 
     @ensure_initialized(full_init=False)
     async def add(
         self,
         movie_sdm: IMDbMovieSDM,
         deinitialize: bool = True,
+        sess: AsyncSession | None = None,
     ) -> IMDbMovieORM | None:
         try:
-            async with self.dbapi.session as session:
-                movie_type: MovieTypeORM = self.movie_types[movie_sdm.type]
-                init_slug = self.slugger.initiate_slug(movie_sdm.name_en)
+            movie_type: MovieTypeORM = self.movie_types[movie_sdm.type]
+            init_slug = self.slugger.initiate_slug(movie_sdm.name_en)
 
-                movie_sdm.set_init_slug(init_slug)
+            movie_sdm.set_init_slug(init_slug)
+            async with self.dbapi.session(sess) as session:
                 slug = await self.slugger.create_slug(init_slug, IMDbMovieORM, session)
 
                 imdb = self.create_orm_instance(movie_sdm, movie_type, slug)
                 await self.dbapi.insertcr(imdb, session)
+                await self.add_imdb_genres(movie_sdm, imdb, session)
 
-            await self.add_imdb_genres(movie_sdm, imdb, session)
-            return imdb
+                return imdb
 
         except IntegrityError as ex:
             print(ex)
@@ -163,7 +168,7 @@ class IMDbMovieManager(DatabaseManager):
 
         try:
             tasks = [
-                asyncio.create_task(self.add(movie_sdm, False))
+                asyncio.create_task(self.add(movie_sdm, deinitialize=False))
                 for movie_sdm in movie_sdms
             ]
             results = await asyncio.gather(*tasks)
@@ -179,6 +184,7 @@ class IMDbMovieManager(DatabaseManager):
     async def getj(
         self,
         *attributes: list[InstrumentedAttribute],
+        sess: AsyncSession | None = None,
         **filters: dict[str, Any],
     ) -> list[Base] | list[tuple[Any]]:
         query = select(IMDbMovieORM)
@@ -189,7 +195,7 @@ class IMDbMovieManager(DatabaseManager):
         if len(filters) > 0:
             query = query.filter_by(**filters)
 
-        async with self.dbapi.session as session:
+        async with self.dbapi.session(sess) as session:
             data = await session.execute(query)
             if len(attributes) == 0:
                 data = data.scalars()

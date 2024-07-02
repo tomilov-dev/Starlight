@@ -133,6 +133,7 @@ class AbstractDatabaseManager:
         self,
         table: Base,
         *attributes: list[InstrumentedAttribute],
+        sess: AsyncSession | None = None,
         **filters: dict[InstrumentedAttribute, Any],
     ) -> list[Base] | list[tuple[Any]]:
         pass
@@ -141,6 +142,7 @@ class AbstractDatabaseManager:
     async def goc(
         self,
         object: BaseModel,
+        sess: AsyncSession | None = None,
     ) -> Base:
         """Implement GoC method"""
 
@@ -150,6 +152,7 @@ class AbstractDatabaseManager:
     async def goc_many(
         self,
         objects: list[BaseModel],
+        sess: AsyncSession | None = None,
     ) -> Base:
         """Implement GoC method for bunch of objects"""
 
@@ -159,6 +162,7 @@ class AbstractDatabaseManager:
     async def add(
         self,
         object: BaseModel,
+        sess: AsyncSession | None = None,
     ) -> Base:
         """Implement Insert method"""
 
@@ -183,10 +187,18 @@ class AbstractDatabaseManager:
         pass
 
     ## Future Methods
-    async def delete(self, object: Base) -> None:
+    async def delete(
+        self,
+        object: Base,
+        sess: AsyncSession | None = None,
+    ) -> None:
         pass
 
-    async def update(self, object: Base) -> None:
+    async def update(
+        self,
+        object: Base,
+        sess: AsyncSession | None = None,
+    ) -> None:
         pass
 
 
@@ -208,12 +220,11 @@ class DatabaseManager(AbstractDatabaseManager):
         self,
         *attributes: list[InstrumentedAttribute],
         table_model: Base | None = None,
+        sess: AsyncSession | None = None,
         **filters: dict[str, Any],
     ) -> list[Base] | list[tuple[Any]]:
-        if table_model is None:
-            table_model = self.ORM
-
-        async with self.dbapi.session as session:
+        table_model = self.ORM if table_model is None else table_model
+        async with self.dbapi.session(sess) as session:
             return await self.dbapi.get(
                 table_model,
                 session,
@@ -224,19 +235,21 @@ class DatabaseManager(AbstractDatabaseManager):
     async def goc(
         self,
         object: BaseModel,
+        sess: AsyncSession | None = None,
     ) -> Base:
         """Default Implementation: Get or Create the object"""
 
         orm = self.ORM.from_pydantic(object)
-        async with self.dbapi.session as session:
+        async with self.dbapi.session(sess) as session:
             return await self.dbapi.goc_r(orm, session)
 
     async def goc_many(
         self,
         objects: list[BaseModel],
+        sess: AsyncSession | None = None,
         **filters,
     ) -> Base:
-        async with self.dbapi.session as session:
+        async with self.dbapi.session(sess) as session:
             tasks = [
                 asyncio.create_task(self.goc(obj, session, **filters))
                 for obj in objects
@@ -246,6 +259,7 @@ class DatabaseManager(AbstractDatabaseManager):
     async def add(
         self,
         object: BaseModel | Base,
+        sess: AsyncSession | None = None,
     ) -> Base | None:
         """Default Implementation: Try to Insert the object"""
 
@@ -253,7 +267,7 @@ class DatabaseManager(AbstractDatabaseManager):
         if isinstance(object, BaseModel):
             orm = self.ORM.from_pydantic(object)
 
-        async with self.dbapi.session as session:
+        async with self.dbapi.session(sess) as session:
             async with self.error_handler:
                 await self.dbapi.insertcr(orm, session)
                 return orm
@@ -278,7 +292,7 @@ class DatabaseManager(AbstractDatabaseManager):
         if isinstance(objects[0], BaseModel):
             orms = [self.ORM.from_pydantic(obj) for obj in objects]
 
-        async with self.dbapi.session as session:
+        async with self.dbapi.session() as session:
             await self.dbapi.insertb_r(orms, session)
             if refresh:
                 tasks = [asyncio.create_task(session.refresh(orm)) for orm in orms]
@@ -296,7 +310,7 @@ class DatabaseManager(AbstractDatabaseManager):
         if isinstance(objects[0], BaseModel):
             orms = [self.ORM.from_pydantic(obj) for obj in objects]
 
-        async with self.dbapi.session as session:
+        async with self.dbapi.session() as session:
             orms = await self.dbapi.gocb_r(
                 orms,
                 session,

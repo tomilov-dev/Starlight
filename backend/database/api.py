@@ -143,6 +143,9 @@ class DatabaseBatchORM(DatabaseORM):
         filter_field: InstrumentedAttribute = None,
         filter_keys: list[Any] = None,
     ) -> list[Base] | None:
+        if len(records) == 0:
+            return None
+
         table = type(records[0])
         tasks = [
             asyncio.create_task(self.__goc_batch(table, b, session))
