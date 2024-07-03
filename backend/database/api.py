@@ -1,168 +1,395 @@
-"""Low Level API"""
-
 import sys
-import asyncio
 from pathlib import Path
-from typing import Any, Generator
-from sqlalchemy import select
+from typing import Type, Any
+
+from sqlalchemy import select, insert, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.dialects.postgresql import Insert
+from sqlalchemy.orm.attributes import InstrumentedAttribute
 
-ROOT_DIR = Path(__file__).parent.parent
-sys.path.append(str(ROOT_DIR))
+sys.path.append(str(Path(__file__).parent))
 
-from database.core import DatabaseCoreORM, Base
+from core import BaseORM, session_factory
+from interfaces import (
+    AbstractDataBaseBacisAPI,
+    AbstractDataBaseBulkAPI,
+    AbstractDataBaseBulkRecordAPI,
+    AbstractDataBaseRecordAPI,
+)
 
-from asyncpg.exceptions import UniqueViolationError
 
-MAX_BATCH_SIZE = 1000
+class DataBaseBasicAPI(
+    AbstractDataBaseBacisAPI,
+):
+    """
+    Low Level Basic Api.
+    Contains default CRUD operations.
+    All methods require session.
+    """
 
-
-class MaxBatchSizeExceeded(ValueError):
-    def __init__(
+    async def get(
         self,
-        message: str = "MAX_BATCH_SIZE exceeded",
-    ) -> None:
-        self.message = message
-        super().__init__(self.message)
-
-
-class ExceptionToHandle:
-    def __init__(
-        self,
-        exception: Exception,
-        clarification_str: str | None = None,
-    ):
-        self.exception = exception
-        self.clarification_str = clarification_str
-
-    def handle(
-        self,
-        exc: Exception,
-    ) -> bool:
-        if isinstance(exc, self.exception):
-            if self.clarification_str and hasattr(exc, "orig"):
-                if self.clarification_str in str(exc.orig):
-                    self.handle_status(exc)
-                    return True
-                return False
-            self.handle_status(exc)
-            return True
-        return False
-
-    def handle_status(self, exc) -> None:
-        print("Exception handled:", exc)
-
-
-class ErrorHandler:
-    def __init__(
-        self,
-        error_handlers: list[ExceptionToHandle],
-    ) -> None:
-        self.error_handlers = tuple(error_handlers)
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        if exc_type and any(h.handle(exc) for h in self.error_handlers):
-            return True
-        return False
-
-
-class DatabaseORM(DatabaseCoreORM):
-    """SQLAlchemy async DB API"""
-
-    pass
-
-
-class DatabaseBatchORM(DatabaseORM):
-    """SQLAlchemy async DB API with batch load support"""
-
-    def batching(
-        self,
-        array: list[object],
-    ) -> Generator[Any, Any, list[object]]:
-        """Divide the array in batches"""
-
-        for i in range(0, len(array), MAX_BATCH_SIZE):
-            yield array[i : i + MAX_BATCH_SIZE]
-
-    async def __insert_batch(
-        self,
-        batch: list[Base],
+        table: Type[BaseORM],
         session: AsyncSession,
-        flush: bool = False,
-    ) -> None:
-        """Async Batch Insertion: one batch upload"""
+        *attributes: InstrumentedAttribute,
+        **filters: Any,
+    ) -> list[BaseORM] | None:
+        """
+        Get data from specified table.
+        Return list of records or None.
+        """
 
-        session.add_all(batch)
+        query = select(*attributes) if attributes else select(table)
+        query = query.filter_by(**filters) if filters else query
+
+        data = await session.execute(query)
+        if attributes:
+            return data.first()
+        return data.scalars().first()
+
+    async def add(
+        self,
+        table: Type[BaseORM],
+        session: AsyncSession,
+        _safe_add: bool = False,
+        **data: Any,
+    ) -> int | None:
+        """
+        Insert data in database.
+        Return None.
+        """
+
+        query = Insert(table).values(**data)
+        query = query.on_conflict_do_nothing() if _safe_add else query
+        query = query.returning(table.id)
+
+        id = await session.execute(query)
         await session.commit()
-        if flush:
-            await session.flush()
+        return id
 
-    async def insertb_r(
+    async def goc(
         self,
-        records: list[Base],
+        table: Type[BaseORM],
         session: AsyncSession,
-        flush: bool = False,
-    ) -> None:
-        """Async Batch Insertion: divide the array in batches and upload 'em"""
+        **data: Any,
+    ) -> BaseORM:
+        """
+        Get or Create method.
+        Return the record.
+        """
 
-        tasks = [
-            asyncio.create_task(self.__insert_batch(b, session, flush))
-            for b in self.batching(records)
-        ]
-        await asyncio.gather(*tasks)
+        query = Insert(table).values(**data)
+        query = query.on_conflict_do_nothing()
+        query = query.returning(*table.__table__.columns)
 
-    async def __goc_batch(
-        self,
-        table: Base,
-        batch: list[Base],
-        session: AsyncSession,
-    ) -> None:
-        data = [
-            {
-                column.name: getattr(record, column.name)
-                for column in table.__table__.columns
-                if not (column.name == "id" and getattr(record, column.name) is None)
-            }
-            for record in batch
-        ]
-
-        statement = Insert(table).values(data)
-        statement = statement.on_conflict_do_nothing()
-        await session.execute(statement)
-        await session.commit()
-
-    async def gocb_r(
-        self,
-        records: list[Base],
-        session: AsyncSession,
-        filter_field: InstrumentedAttribute = None,
-        filter_keys: list[Any] = None,
-    ) -> list[Base] | None:
-        if len(records) == 0:
-            return None
-
-        table = type(records[0])
-        tasks = [
-            asyncio.create_task(self.__goc_batch(table, b, session))
-            for b in self.batching(records)
-        ]
-        await asyncio.gather(*tasks)
-
-        if filter_field is None or filter_keys is None:
-            return None
-
-        query = select(table).where(filter_field.in_(filter_keys))
         result = await session.execute(query)
-        return result.scalars().all()
+        result = result.fetchone()
+
+        if result:
+            await session.commit()
+            return result
+
+        return await self.get(table, session, **data)
+
+    async def update(
+        self,
+        table: Type[BaseORM],
+        session: AsyncSession,
+        filters: dict[str, Any],
+        **updates: Any,
+    ) -> BaseORM | None:
+        """
+        Update method.
+        Return the record or None.
+        """
+
+        query = update(table).filter_by(**filters)
+        query = query.values(**updates)
+        query = query.returning(*table.__table__.columns)
+
+        updated = await session.execute(query)
+        updated = updated.fetchone()
+
+        await session.commit()
+        return updated
+
+    async def upsert(
+        self,
+        table: Type[BaseORM],
+        session: AsyncSession,
+        **data: Any,
+    ) -> BaseORM:
+        """
+        Update or Insert method.
+        Return the record.
+        """
+
+        raise NotImplementedError()
+
+        query = Insert(table).values(**data)
+        query = query.on_conflict_do_update()
+        query = query.returning(*table.__table__.columns)
+
+        result = await session.execute(query)
+        result = result.fetchone()
+
+        await session.commit()
+        return result
+
+    async def delete(
+        self,
+        table: Type[BaseORM],
+        session: AsyncSession,
+        **filters: Any,
+    ) -> None:
+        """
+        Delete method.
+        Return None.
+        """
+
+        query = delete(table).filter_by(**filters)
+        await session.execute(query)
+        await session.commit()
+
+    async def exists(
+        self,
+        table: Type[BaseORM],
+        session: AsyncSession,
+        **filters: Any,
+    ) -> bool:
+        """
+        Check if data exists in the database.
+        Return boolean.
+        """
+
+        query = select(select(table).filter_by(**filters).exists())
+        return await session.scalar(query)
 
 
-class DatabaseAPI(DatabaseBatchORM):
-    """Main Database API methods. It's Singleton"""
+class DataBaseRecordAPI(
+    AbstractDataBaseRecordAPI,
+    DataBaseBasicAPI,
+):
+    """
+    Low Level Record Api Implementation.
+    Contains CRUD operations with records.
+    All methods require session.
+    """
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    async def radd(
+        self,
+        record: BaseORM,
+        session: AsyncSession,
+        refresh: bool = True,
+    ) -> None:
+        """
+        Insert the record in the database.
+        Return None.
+        """
+
+        session.add(record)
+        await session.commit()
+        if refresh:
+            await session.refresh(record)
+
+    async def rgoc(
+        self,
+        record: BaseORM,
+        session: AsyncSession,
+    ) -> BaseORM:
+        """
+        Get or Create method.
+        Return the record.
+        """
+
+        return await self.goc(
+            record.table,
+            session,
+            **record.to_dict(),
+        )
+
+    async def rupdate(
+        self,
+        record: BaseORM,
+        session: AsyncSession,
+    ) -> BaseORM | None:
+        """
+        Update method.
+        Return the record or None.
+        """
+
+        raise NotImplementedError()
+
+    async def rupsert(
+        self,
+        record: BaseORM,
+        session: AsyncSession,
+    ) -> BaseORM:
+        """
+        Update or Insert method.
+        Return the record.
+        """
+
+        raise NotImplementedError()
+
+    async def rdelete(
+        self,
+        record: BaseORM,
+        session: AsyncSession,
+    ) -> None:
+        """
+        Delete method.
+        Return None.
+        """
+
+        await self.delete(record.table, session, **record.filters())
+        await session.commit()
+
+    async def rexists(
+        self,
+        record: BaseORM,
+        session: AsyncSession,
+    ):
+        """
+        Check if the record exists in the database.
+        Return boolean.
+        """
+
+        table = record.table
+        filters = record.filters()
+
+        query = select(select(table).filter_by(**filters).exists())
+        return await session.scalar(query)
+
+
+class DataBaseBulkAPI(
+    AbstractDataBaseBulkAPI,
+):
+    async def badd(
+        self,
+        table: Type[BaseORM],
+        session: AsyncSession,
+        data: list[dict[str, Any]],
+    ) -> None:
+        """Insert object in database"""
+
+        if not data:
+            return None
+
+        query = insert(table).values(data)
+        await session.execute(query)
+        await session.commit()
+
+    async def bgoc(
+        self,
+        table: Type[BaseORM],
+        session: AsyncSession,
+        data: list[dict[str, Any]],
+    ) -> BaseORM:
+        """Get or Create method: return the object"""
+
+        if not data:
+            return None
+
+        query = Insert(table).values(data)
+        query = query.on_conflict_do_nothing()
+        query = query.returning(*table.__table__.columns)
+
+        result = await session.execute(query)
+        await session.commit()
+        return result.fetchone()
+
+    async def bupdate(
+        self,
+        session: AsyncSession,
+    ):
+        """Update method"""
+
+        pass
+
+    async def bupsert(
+        self,
+        session: AsyncSession,
+    ):
+        """Update or insert method"""
+
+        pass
+
+    async def bexists(
+        self,
+        session: AsyncSession,
+    ):
+        """Check if the object exists in the database"""
+
+        pass
+
+
+class DatabaseBulkRecordAPI(
+    AbstractDataBaseBulkRecordAPI,
+    DataBaseBulkAPI,
+):
+
+    async def brget(
+        self,
+        session: AsyncSession,
+    ) -> list[BaseORM]:
+        """Get data from specified table"""
+
+        raise NotImplementedError()
+
+    async def bradd(
+        self,
+        session: AsyncSession,
+    ) -> None:
+        """Insert object in database"""
+
+        raise NotImplementedError()
+
+    async def brgoc(
+        self,
+        session: AsyncSession,
+    ) -> BaseORM:
+        """Get or Create method: return the object"""
+
+        raise NotImplementedError()
+
+    async def brupdate(
+        self,
+        session: AsyncSession,
+    ):
+        """Update method"""
+
+        raise NotImplementedError()
+
+    async def brupsert(
+        self,
+        session: AsyncSession,
+    ):
+        """Update or insert method"""
+
+        raise NotImplementedError()
+
+    async def brdelete(
+        self,
+        session: AsyncSession,
+    ):
+        """Detele method"""
+
+        raise NotImplementedError()
+
+    async def brexists(
+        self,
+        session: AsyncSession,
+    ):
+        """Check if the object exists in the database"""
+
+        raise NotImplementedError()
+
+
+class DataBaseAPI(
+    DataBaseBulkAPI,
+    DataBaseRecordAPI,
+):
+    @property
+    def session(self) -> AsyncSession:
+        return session_factory()

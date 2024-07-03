@@ -1,6 +1,6 @@
 import sys
 import asyncio
-from typing import Any
+from typing import Any, Type
 from pathlib import Path
 from pydantic import BaseModel
 from slugify import slugify
@@ -28,14 +28,46 @@ sys.path.append(str(ROOT_DIR))
 from settings import settings
 
 
-class Base(DeclarativeBase):
+class BaseORM(DeclarativeBase):
     @classmethod
-    def from_pydantic(cls, pydantic: BaseModel) -> "Base":
+    def from_pydantic(cls, pydantic: BaseModel) -> "BaseORM":
         allowed_attributes = set(cls.__table__.columns.keys())
         pydantic_data = pydantic.model_dump().items()
         return cls(
             **{key: value for key, value in pydantic_data if key in allowed_attributes}
         )
+
+    @property
+    def table(self) -> Type["BaseORM"]:
+        return type(self)
+
+    @property
+    def excluded_attrs(self) -> set[str]:
+        return set(["id"])
+
+    def filters(self) -> dict:
+        filters = {}
+
+        for column in inspect(self).mapper.column_attrs:
+            attr_data = getattr(self, column.key)
+            if attr_data is not None:
+                filters[column.key] = attr_data
+
+        return filters
+
+    def to_dict(self) -> dict:
+        data = {}
+
+        excluded_attrs = self.excluded_attrs
+        for column in inspect(self).mapper.column_attrs:
+            if column.key in excluded_attrs:
+                continue
+
+            attr_data = getattr(self, column.key)
+            if attr_data is not None:
+                data[column.key] = attr_data
+
+        return data
 
 
 def get_sync_engige() -> Engine:
@@ -79,15 +111,6 @@ def get_sessionfactory(
     return session_factory
 
 
-def as_dict(obj: Base) -> dict:
-    data = {}
-    for c in inspect(obj).mapper.column_attrs:
-        attr_data = getattr(obj, c.key)
-        if attr_data is not None:
-            data[c.key] = attr_data
-    return data
-
-
 _MAIN_ENGINE = get_async_engine
 
 get_engine = _MAIN_ENGINE
@@ -123,160 +146,160 @@ class SessionHandler:
         return True
 
 
-class DatabaseCoreORM:
-    """Core methods of Database API"""
+# class DatabaseCoreORM:
+#     """Core methods of Database API"""
 
-    __instance = None
+#     __instance = None
 
-    def __new__(cls, *args, **kwargs):
-        if not isinstance(cls.__instance, cls):
-            cls.__instance = object.__new__(cls, *args, **kwargs)
-        return cls.__instance
+#     def __new__(cls, *args, **kwargs):
+#         if not isinstance(cls.__instance, cls):
+#             cls.__instance = object.__new__(cls, *args, **kwargs)
+#         return cls.__instance
 
-    def __init__(self) -> None:
-        if not isinstance(session_factory, async_sessionmaker):
-            raise ValueError("Session factory should be asynchronous!")
-        self.session_factory = session_factory
+#     def __init__(self) -> None:
+#         if not isinstance(session_factory, async_sessionmaker):
+#             raise ValueError("Session factory should be asynchronous!")
+#         self.session_factory = session_factory
 
-    def session(self, session: AsyncSession | None = None) -> AsyncSession:
-        return SessionHandler(session)
+#     def session(self, session: AsyncSession | None = None) -> AsyncSession:
+#         return SessionHandler(session)
 
-    async def exists(
-        self,
-        table: Base,
-        session: AsyncSession,
-        **filters: dict[str, Any],
-    ) -> bool:
-        """
-        Check existance of data in the table by filters
+#     async def exists(
+#         self,
+#         table: Base,
+#         session: AsyncSession,
+#         **filters: dict[str, Any],
+#     ) -> bool:
+#         """
+#         Check existance of data in the table by filters
 
-        1. Need to pass table (ORM model). Not record.
-        2. Need to pass session.
-        3. Need to pass AT LEAST ONE filter
-        """
+#         1. Need to pass table (ORM model). Not record.
+#         2. Need to pass session.
+#         3. Need to pass AT LEAST ONE filter
+#         """
 
-        if filters == {} or not filters:
-            raise ValueError(
-                "Need to pass at least one filter for check data existence"
-            )
+#         if filters == {} or not filters:
+#             raise ValueError(
+#                 "Need to pass at least one filter for check data existence"
+#             )
 
-        query = select(select(table).filter_by(**filters).exists())
-        return await session.scalar(query)
+#         query = select(select(table).filter_by(**filters).exists())
+#         return await session.scalar(query)
 
-    async def exists_r(
-        self,
-        record: Base,
-        session: AsyncSession,
-    ) -> bool:
-        """
-        Check existance of the record in the table by their attributes
+#     async def exists_r(
+#         self,
+#         record: Base,
+#         session: AsyncSession,
+#     ) -> bool:
+#         """
+#         Check existance of the record in the table by their attributes
 
-        1. Need to pass record (instance of ORM model).
-        2. Need to pass session.
-        """
+#         1. Need to pass record (instance of ORM model).
+#         2. Need to pass session.
+#         """
 
-        table = type(record)
-        filters = {
-            column.name: getattr(record, column.name)
-            for column in table.__table__.columns
-            if getattr(record, column.name) is not None
-        }
-        query = select(select(table).filter_by(**filters).exists())
-        return await session.scalar(query)
+#         table = type(record)
+#         filters = {
+#             column.name: getattr(record, column.name)
+#             for column in table.__table__.columns
+#             if getattr(record, column.name) is not None
+#         }
+#         query = select(select(table).filter_by(**filters).exists())
+#         return await session.scalar(query)
 
-    async def get(
-        self,
-        table: Base,
-        session: AsyncSession,
-        *attributes: list[InstrumentedAttribute],
-        **filters: dict[str, Any],
-    ) -> list[Base] | list[tuple[Any]]:
-        """
-        Get data from table usings passed filters.
-        Retrieves only passed attributes.
-        If attributes aren't passed, all attributes are retrived.
+#     async def get(
+#         self,
+#         table: Base,
+#         session: AsyncSession,
+#         *attributes: list[InstrumentedAttribute],
+#         **filters: dict[str, Any],
+#     ) -> list[Base] | list[tuple[Any]]:
+#         """
+#         Get data from table usings passed filters.
+#         Retrieves only passed attributes.
+#         If attributes aren't passed, all attributes are retrived.
 
-        1. Need to pass table (ORM model). Not record.
-        2. Need to pass session.
-        3. Need to pass AT LEAST ONE filter.
+#         1. Need to pass table (ORM model). Not record.
+#         2. Need to pass session.
+#         3. Need to pass AT LEAST ONE filter.
 
-        Return list of Model Records or Part of Model Records (namedtuple)
-        """
+#         Return list of Model Records or Part of Model Records (namedtuple)
+#         """
 
-        query = select(table)
-        if len(attributes) > 0:
-            query = select(*attributes)
-        if len(filters) > 0:
-            query = query.filter_by(**filters)
+#         query = select(table)
+#         if len(attributes) > 0:
+#             query = select(*attributes)
+#         if len(filters) > 0:
+#             query = query.filter_by(**filters)
 
-        data = await session.execute(query)
-        if len(attributes) == 0:
-            data = data.scalars()
-        return data.all()
+#         data = await session.execute(query)
+#         if len(attributes) == 0:
+#             data = data.scalars()
+#         return data.all()
 
-    async def insert(
-        self,
-        record: Base,
-        session: AsyncSession,
-        flush: bool = True,
-    ) -> None:
-        """Insert and Flush (object update) method"""
+#     async def insert(
+#         self,
+#         record: Base,
+#         session: AsyncSession,
+#         flush: bool = True,
+#     ) -> None:
+#         """Insert and Flush (object update) method"""
 
-        session.add(record)
-        if flush:
-            await session.flush()
-        await session.commit()
+#         session.add(record)
+#         if flush:
+#             await session.flush()
+#         await session.commit()
 
-    async def insertcr(
-        self,
-        record: Base,
-        session: AsyncSession,
-        refresh: bool = True,
-    ) -> None:
-        """Insert, Commit and Refresh method"""
+#     async def insertcr(
+#         self,
+#         record: Base,
+#         session: AsyncSession,
+#         refresh: bool = True,
+#     ) -> None:
+#         """Insert, Commit and Refresh method"""
 
-        session.add(record)
-        await session.commit()
-        if refresh:
-            await session.refresh(record)
+#         session.add(record)
+#         await session.commit()
+#         if refresh:
+#             await session.refresh(record)
 
-    async def goc_r(
-        self,
-        record: Base,
-        session: AsyncSession,
-    ) -> Base:
-        table = type(record)
-        data = {
-            column.name: getattr(record, column.name)
-            for column in table.__table__.columns
-            if not (column.name == "id" and getattr(record, column.name) is None)
-        }
+#     async def goc_r(
+#         self,
+#         record: Base,
+#         session: AsyncSession,
+#     ) -> Base:
+#         table = type(record)
+#         data = {
+#             column.name: getattr(record, column.name)
+#             for column in table.__table__.columns
+#             if not (column.name == "id" and getattr(record, column.name) is None)
+#         }
 
-        insert_stmt = Insert(table).values(**data)
-        do_nothing_stmt = insert_stmt.on_conflict_do_nothing()
-        returning = do_nothing_stmt.returning(*table.__table__.columns)
+#         insert_stmt = Insert(table).values(**data)
+#         do_nothing_stmt = insert_stmt.on_conflict_do_nothing()
+#         returning = do_nothing_stmt.returning(*table.__table__.columns)
 
-        result = await session.execute(returning)
-        await session.commit()
-        return result.fetchone()
+#         result = await session.execute(returning)
+#         await session.commit()
+#         return result.fetchone()
 
-    async def update_r(
-        self,
-        record: Base,
-        session: AsyncSession,
-    ) -> Base | None:
-        raise NotImplementedError("update_r is not implemented")
+#     async def update_r(
+#         self,
+#         record: Base,
+#         session: AsyncSession,
+#     ) -> Base | None:
+#         raise NotImplementedError("update_r is not implemented")
 
-    async def update(
-        self,
-        table: Base,
-        session: AsyncSession,
-        filters: dict[str, Any],
-        flush: bool = False,
-        **updates: dict[str, Any],
-    ) -> None:
-        query = update(table).filter_by(**filters).values(**updates)
-        await session.execute(query)
-        if flush:
-            await session.flush()
-        await session.commit()
+#     async def update(
+#         self,
+#         table: Base,
+#         session: AsyncSession,
+#         filters: dict[str, Any],
+#         flush: bool = False,
+#         **updates: dict[str, Any],
+#     ) -> None:
+#         query = update(table).filter_by(**filters).values(**updates)
+#         await session.execute(query)
+#         if flush:
+#             await session.flush()
+#         await session.commit()

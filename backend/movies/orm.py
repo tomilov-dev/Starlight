@@ -15,13 +15,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.append(str(ROOT_DIR))
 
-from database.core import Base
+from database.core import BaseORM
 
 
 intpk = Annotated[int, mapped_column(primary_key=True)]
 
 
-class MovieTypeORM(Base):
+class MovieTypeORM(BaseORM):
     """IMDb movie type"""
 
     __tablename__ = "movie_type"
@@ -44,7 +44,7 @@ class MovieTypeORM(Base):
         return self.name_en
 
 
-class IMDbMovieORM(Base):
+class IMDbMovieORM(BaseORM):
     """IMDb movie info"""
 
     __tablename__ = "imdb_movie"
@@ -94,7 +94,7 @@ class IMDbMovieORM(Base):
         return str(self.imdb_mvid)
 
 
-class MovieCollectionORM(Base):
+class MovieCollectionORM(BaseORM):
     """TMDb Collection"""
 
     __tablename__ = "collection"
@@ -117,7 +117,7 @@ class MovieCollectionORM(Base):
         return self.name_en
 
 
-class TMDbMovieORM(Base):
+class TMDbMovieORM(BaseORM):
     """TMDb movie info"""
 
     __tablename__ = "tmdb_movie"
@@ -166,7 +166,7 @@ class TMDbMovieORM(Base):
         return str(self.tmdb_mvid)
 
 
-class CountryORM(Base):
+class CountryORM(BaseORM):
     __tablename__ = "country"
 
     id: Mapped[intpk]
@@ -186,7 +186,7 @@ class CountryORM(Base):
         return self.name_en
 
 
-class MovieCountryORM(Base):
+class MovieCountryORM(BaseORM):
     __tablename__ = "movie_country"
 
     id: Mapped[intpk]
@@ -216,7 +216,7 @@ class MovieCountryORM(Base):
     )
 
 
-class ProductionCompanyORM(Base):
+class ProductionCompanyORM(BaseORM):
     __tablename__ = "production_company"
 
     id: Mapped[intpk]
@@ -242,7 +242,7 @@ class ProductionCompanyORM(Base):
         return str(self.name_en)
 
 
-class MovieProductionORM(Base):
+class MovieProductionORM(BaseORM):
     __tablename__ = "movie_production"
 
     id: Mapped[intpk]
@@ -272,7 +272,7 @@ class MovieProductionORM(Base):
     )
 
 
-class GenreORM(Base):
+class GenreORM(BaseORM):
     __tablename__ = "genre"
 
     id: Mapped[intpk]
@@ -298,7 +298,7 @@ class GenreORM(Base):
         return str(self.name_en)
 
 
-class MovieGenreORM(Base):
+class MovieGenreORM(BaseORM):
     __tablename__ = "movie_genre"
 
     id: Mapped[intpk]
