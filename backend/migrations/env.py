@@ -8,7 +8,7 @@ from settings import settings
 ## Need to import all models
 from movies.orm import IMDbMovieORM
 from persons.orm import IMDbPersonORM
-from database.core import Base
+from database.core import BaseORM
 
 config = context.config
 
@@ -20,7 +20,7 @@ config.set_main_option(
     settings.DSN_asyncpg + "?async_fallback=True",
 )
 
-target_metadata = Base.metadata
+target_metadata = BaseORM.metadata
 
 
 def run_migrations_offline() -> None:

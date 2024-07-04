@@ -3,160 +3,133 @@ import asyncio
 from functools import wraps
 from pathlib import Path
 from pydantic import BaseModel
+from tqdm.asyncio import tqdm_asyncio
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 ROOT_DIR = Path(__file__).parent.parent
 PROJ_DIR = ROOT_DIR.parent
 sys.path.append(str(ROOT_DIR))
 sys.path.append(str(PROJ_DIR))
+sys.path.append(str(PROJ_DIR.parent))
 
-from database.core import Base
+from backend.settings import settings
 from database.api import ExceptionToHandle
-from database.manager import DatabaseManager
+from database.manager import AbstractMovieDataSource, AbstractPersonDataSource
+from database.manager import DataBaseManagerOnInit
 from movies.orm import IMDbMovieORM
 from movies.manager.imdb_movie import IMDbMovieManager
 from persons.orm import IMDbPersonORM, ProfessionORM, PersonProfessionORM
 from services.imdb.dataset import IMDbDataSet
-from services.models import IMDbPersonSDM
+from persons.source import PersonDataSource, IMDbPersonSourceDM
+from movies.source import MovieDataSource
 
 
-def ensure_initialized(full_init):
-    def init_wrapper(func):
-        @wraps(func)
-        async def wrapper(self, *args, **kwargs):
-            if not self.initialized:
-                await self._initialize(full_init)
-            return await func(self, *args, **kwargs)
-
-        return wrapper
-
-    return init_wrapper
-
-
-class IMDbPersonManager(DatabaseManager):
+class IMDbPersonManager(DataBaseManagerOnInit):
     ORM = IMDbPersonORM
 
     def __init__(
         self,
+        movie_source: AbstractMovieDataSource = MovieDataSource(),
+        person_source: AbstractPersonDataSource = PersonDataSource(),
         exceptions_to_handle: list[ExceptionToHandle] = [
             ExceptionToHandle(IntegrityError, "duplicate key value"),
         ],
     ) -> None:
-        super().__init__(exceptions_to_handle)
+        super().__init__(
+            movie_source=movie_source,
+            person_source=person_source,
+            exceptions_to_handle=exceptions_to_handle,
+        )
+
+        semlimit = (settings.PG_POOL_SIZE + settings.PG_MAX_OVERFLOW) // 2
+        self.semaphore = asyncio.Semaphore(semlimit)
+
         self.initialized = False
         self.current_nmids = set()
 
-    async def _initialize(self, full_init: bool) -> None:
+    async def _initialize(self) -> None:
         async with self.dbapi.session as session:
             self.professions = {
                 mt.imdb_name.lower(): mt
-                for mt in await self.dbapi.get(ProfessionORM, session)
+                for mt in await self.dbapi.mget(ProfessionORM, session)
             }
-
-            if full_init:
-                imdb_persons = await self.dbapi.get(
-                    IMDbPersonORM,
-                    session,
-                    IMDbPersonORM.imdb_nmid,
-                    IMDbPersonORM.slug,
-                )
-
-                self.current_nmids = {p.imdb_nmid for p in imdb_persons}
-                self.slugger.setup({p.slug for p in imdb_persons})
+            await self.slugger.setup([])
 
     def _deinitialize(self) -> None:
         if self.initialized:
             if self.professions:
                 del self.professions
             if self.current_nmids:
-                del self.current_nmids
+                self.current_nmids = set()
 
             self.slugger.clear()
 
-    def create_orm_instance(
-        self,
-        person: IMDbPersonSDM,
-        slug: str,
-    ) -> IMDbPersonORM:
-        return IMDbPersonORM(
-            imdb_nmid=person.imdb_nmid,
-            name_en=person.name_en,
-            slug=slug,
-            birth_y=person.birth_y,
-            death_y=person.death_y,
-        )
-
     async def add_professions(
         self,
-        person_sdm: IMDbPersonSDM,
-        person_orm: IMDbPersonORM,
+        person_sdm: IMDbPersonSourceDM,
+        person_id: int,
+        session: AsyncSession,
     ) -> None:
-        if person_sdm.professions is None:
-            return None
-        if len(person_sdm.professions) == 0:
+        if not person_sdm.professions:
             return None
 
-        profession_orms = [
-            self.professions.get(pfn, None) for pfn in person_sdm.professions
+        professions = [
+            self.professions.get(p.imdb_name.lower(), None)
+            for p in person_sdm.professions
         ]
 
-        objects = [
-            PersonProfessionORM(
-                profession=profession_orm.id,
-                person=person_orm.id,
+        professions = [p for p in professions if p is not None]
+        if professions:
+            data = [{"profession": p.id, "person": person_id} for p in professions]
+            await self.dbapi.badd(
+                PersonProfessionORM,
+                session,
+                _safe_add=True,
+                data=data,
             )
-            for profession_orm in profession_orms
-            if profession_orm is not None
-        ]
 
-        async with self.dbapi.session as session:
-            await self.dbapi.gocb_r(objects, session)
+    async def add(self, person_sdm: IMDbPersonSourceDM) -> int | None:
+        async with self.semaphore:
 
-    @ensure_initialized(full_init=False)
-    async def add(
-        self,
-        person: IMDbPersonSDM,
-        deinitizalize: bool = True,
-    ) -> Base | None:
-        try:
+            init_slug = self.slugger.initiate_slug(person_sdm.name_en)
             async with self.dbapi.session as session:
-                init_slug = self.slugger.initiate_slug(person.name_en)
-                slug = await self.slugger.create_slug(init_slug, IMDbPersonORM, session)
+                slug = await self.slugger.create_slug(
+                    IMDbPersonORM,
+                    session,
+                    init_slug,
+                )
 
-                person_orm = self.create_orm_instance(person, slug)
-                await self.dbapi.insertcr(person_orm, session)
+                person_id = await self.dbapi.add(
+                    IMDbPersonORM,
+                    session,
+                    _safe_add=True,
+                    slug=slug,
+                    **person_sdm.to_db(),
+                )
 
-            await self.add_professions(person, person_orm)
-
-            return person_orm
-
-        finally:
-            if deinitizalize:
-                self._deinitialize()
-
-    @ensure_initialized(full_init=True)
-    async def add_many(
-        self,
-        persons: list[Base | BaseModel],
-    ) -> list[Base] | None:
-        try:
-            tasks = [self.add(p) for p in persons]
-            orms = await asyncio.gather(*tasks)
-            return orms
-
-        finally:
-            self._deinitialize()
+                if person_id:
+                    await self.add_professions(person_sdm, person_id, session)
 
 
 async def imdb_persons_init():
-    dataset = IMDbDataSet()
-    imdbMM = IMDbMovieManager()
-
-    imdb_mvids = await imdbMM.get(IMDbMovieORM.imdb_mvid)
-    _, persons = dataset.get_movie_crew(imdb_mvids=[m.imdb_mvid for m in imdb_mvids])
-
     manager = IMDbPersonManager()
-    await manager.add_many(persons)
+    person_ds = PersonDataSource()
+
+    imdbs: list[IMDbMovieORM] = []
+    async with manager.dbapi.session as session:
+        imdbs = await manager.dbapi.mget(
+            IMDbMovieORM,
+            session,
+            IMDbMovieORM.id,
+            IMDbMovieORM.imdb_mvid,
+            principals_added=False,
+        )
+
+    persons = await person_ds.get_imdb_persons([m.imdb_mvid for m in imdbs])
+    async with manager as imanager:
+        tasks = [asyncio.create_task(imanager.add(p)) for p in persons]
+        await tqdm_asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":

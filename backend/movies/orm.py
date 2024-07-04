@@ -14,11 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.append(str(ROOT_DIR))
-
-from database.core import BaseORM
-
-
-intpk = Annotated[int, mapped_column(primary_key=True)]
+from database.core import BaseORM, intpk
 
 
 class MovieTypeORM(BaseORM):

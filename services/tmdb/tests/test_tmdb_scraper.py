@@ -1,13 +1,9 @@
 import sys
-import asyncio
 from pathlib import Path
-
 import pytest
 
-PROJ_DIR = Path(__file__).parent.parent.parent.parent
-sys.path.append(str(PROJ_DIR))
-
-from services.tmdb.scraper import TMDbScraper, TMDbMovieSDM, MovieDoesNotExist
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
+from services.tmdb.scraper import TMDbScraper, TMDbMovieServiceDM, MovieDoesNotExist
 from services.tmdb.settings import settings
 
 
@@ -83,7 +79,7 @@ class TestTMDbScraper:
     @pytest.mark.asyncio
     async def test_get_movie(self):
         scraper = self.get_scraper()
-        movie: TMDbMovieSDM = await scraper.get_movie(TestCase.imdb_mvid)
+        movie: TMDbMovieServiceDM = await scraper.get_movie(TestCase.imdb_mvid)
 
         assert movie.imdb_mvid == TestCase.imdb_mvid
         assert movie.tmdb_mvid == TestCase.tmdb_mvid
@@ -96,7 +92,9 @@ class TestTMDbScraper:
 
         error = None
         try:
-            movie: TMDbMovieSDM = await scraper.get_movie(TestCase.imdb_not_exists)
+            movie: TMDbMovieServiceDM = await scraper.get_movie(
+                TestCase.imdb_not_exists
+            )
         except MovieDoesNotExist as ex:
             error = ex
 

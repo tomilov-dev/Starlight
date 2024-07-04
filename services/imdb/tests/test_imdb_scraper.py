@@ -3,9 +3,7 @@ from pathlib import Path
 
 import pytest
 
-PROJ_DIR = Path(__file__).parent.parent.parent.parent
-sys.path.append(str(PROJ_DIR))
-
+sys.path.append(str(Path(__file__).parent.parent))
 from services.imdb.scraper import IMDbScraper, IMDb404Error
 
 

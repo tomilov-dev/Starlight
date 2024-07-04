@@ -2,11 +2,8 @@ import re
 import sys
 from pathlib import Path
 
-import pytest
 
-PROJ_DIR = Path(__file__).parent.parent.parent.parent
-sys.path.append(str(PROJ_DIR))
-
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 from services.imdb.dataset import IMDbDataSet
 
 

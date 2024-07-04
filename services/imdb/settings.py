@@ -8,6 +8,8 @@ PROJ_DIR = Path(__file__).parent.parent.parent
 
 class Settings(BaseSettings):
     DEBUG: bool
+    IMDB_MAX_RATE: int
+    IMDB_RATE_PERIOD: int
 
     model_config = SettingsConfigDict(
         env_file=".env",

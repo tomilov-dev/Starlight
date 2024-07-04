@@ -2,39 +2,41 @@ import sys
 import asyncio
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).parent.parent
-PROJ_DIR = ROOT_DIR.parent
+from sqlalchemy.exc import IntegrityError
+
+ROOT_DIR = Path(__file__).parent.parent.parent
 sys.path.append(str(ROOT_DIR))
-sys.path.append(str(PROJ_DIR))
-sys.path.append(str(PROJ_DIR.parent))
 
-# from database.manager import DatabaseManager
-from database.api import DataBaseAPI
+from database.api import ExceptionToHandle
+from database.manager import AbstractMovieDataSource, AbstractPersonDataSource
+from database.manager import DataBaseManager
 from movies.orm import CountryORM
-from services.countries import countries
+from movies.source import MovieDataSource
+from persons.source import PersonDataSource
 
 
-# class CountryManager(DatabaseManager):
-#     ORM = CountryORM
+class CountryManager(DataBaseManager):
+    def __init__(
+        self,
+        movie_source: AbstractMovieDataSource = MovieDataSource(),
+        person_source: AbstractPersonDataSource = PersonDataSource(),
+        exceptions_to_handle: list[ExceptionToHandle] = [
+            ExceptionToHandle(IntegrityError, "duplicate key value"),
+        ],
+    ) -> None:
+        super().__init__(
+            movie_source=movie_source,
+            person_source=person_source,
+            exceptions_to_handle=exceptions_to_handle,
+        )
+
+    ORM = CountryORM
 
 
 async def countries_init():
-    # manager = CountryManager()
-    # await manager.goc_batch(countries)
-
-    country = countries[0]
-    print(country)
-
-    api = DataBaseAPI()
-    async with api.session as session:
-        record = await api.goc(
-            CountryORM,
-            session,
-            name_en=country.name_en,
-            name_ru=country.name_ru,
-            iso=country.iso,
-        )
-        print(record.id)
+    manager = CountryManager(MovieDataSource())
+    countries = manager.movie_source.get_countries()
+    await manager.badd(countries)
 
 
 if __name__ == "__main__":

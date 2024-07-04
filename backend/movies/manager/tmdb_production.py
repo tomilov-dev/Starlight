@@ -15,8 +15,15 @@ sys.path.append(str(ROOT_DIR))
 sys.path.append(str(PROJ_DIR))
 sys.path.append(str(PROJ_DIR.parent))
 
-from services.models import ProductionSDM
-from database.manager import DatabaseManager, ExceptionToHandle
+from persons.source import PersonDataSource
+from movies.source import ProductionSourceDM, MovieDataSource
+from database.manager import (
+    DataBaseManagerOnInit,
+    AbstractMovieDataSource,
+    ExceptionToHandle,
+    AbstractPersonDataSource,
+)
+from database.manager import DataBaseManagerOnInit, ExceptionToHandle
 from movies.orm import (
     IMDbMovieORM,
     TMDbMovieORM,
@@ -30,21 +37,32 @@ from movies.orm import (
 )
 
 
-class TMDbProductionManager(DatabaseManager):
+class TMDbProductionManager(DataBaseManagerOnInit):
     ORM = ProductionCompanyORM
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        movie_source: AbstractMovieDataSource = MovieDataSource(),
+        person_source: AbstractPersonDataSource = PersonDataSource(),
+        exceptions_to_handle: list[ExceptionToHandle] = [
+            ExceptionToHandle(IntegrityError, "duplicate key value"),
+        ],
+    ) -> None:
+        super().__init__(
+            movie_source=movie_source,
+            person_source=person_source,
+            exceptions_to_handle=exceptions_to_handle,
+        )
 
-        self.initialized = False
+        self.production_manager = None
 
     async def _initialize(self) -> None:
-        async with self.dbapi.session() as session:
+        async with self.dbapi.session as session:
             self.countries = {
-                c.iso: c for c in await self.dbapi.get(CountryORM, session)
+                c.iso: c for c in await self.dbapi.mget(CountryORM, session)
             }
 
-            productions = await self.dbapi.get(
+            productions = await self.dbapi.mget(
                 ProductionCompanyORM,
                 session,
                 ProductionCompanyORM.slug,
@@ -61,56 +79,28 @@ class TMDbProductionManager(DatabaseManager):
             self.slugger.clear()
             self.initialized = False
 
-    def create_orm_instance(
-        self,
-        production: ProductionSDM,
-        country: int,
-        slug: str,
-    ) -> ProductionCompanyORM:
-        return ProductionCompanyORM(
-            tmdb_id=production.tmdb_id,
-            country=country,
-            name_en=production.name_en,
-            slug=slug,
-            image_url=production.image_url,
-        )
+    async def add(self):
+        raise NotImplementedError()
 
-    async def get_orm_instance(
-        self,
-        production: ProductionSDM,
-        session: AsyncSession,
-    ) -> ProductionCompanyORM:
-        country = self.countries.get(production.country, None)
-        country = country.id if country else country
-
-        init_slug = self.slugger.initiate_slug(production.name_en)
-        production.set_init_slug(init_slug)
-
-        slug = await self.slugger.create_slug(
-            init_slug,
-            ProductionCompanyORM,
-            session,
-        )
-
-        return self.create_orm_instance(production, country, slug)
+    async def badd(self):
+        raise NotImplementedError()
 
     async def goc(
         self,
-        production: ProductionSDM,
-        sess: AsyncSession | None = None,
-    ) -> ProductionCompanyORM | None:
-        async with self.dbapi.session(sess) as session:
-            production_orm = await self.get_orm_instance(production, session)
-            production_orm = await self.dbapi.goc_r(production_orm, session)
-            return production_orm
+        production: ProductionSourceDM,
+        session: AsyncSession,
+    ) -> int | None:
+        country = None
+        if production.country:
+            country = self.countries.get(production.country.iso, None)
+        country_id = country.id if country else country
 
-    async def add(
-        self,
-        production: ProductionSDM,
-        sess: AsyncSession | None = None,
-    ) -> ProductionCompanyORM | None:
-        async with self.dbapi.session(sess) as session:
-            production_orm = await self.get_orm_instance(production, session)
-            await self.dbapi.insertcr(production_orm, session)
-
-            return production_orm
+        init_slug = self.slugger.initiate_slug(production.name_en)
+        slug = await self.slugger.create_slug(ProductionCompanyORM, session, init_slug)
+        return await self.dbapi.goc(
+            ProductionCompanyORM,
+            session,
+            slug=slug,
+            country=country_id,
+            **production.to_db(),
+        )

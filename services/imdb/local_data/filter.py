@@ -1,13 +1,8 @@
 """Transform full dataset to working dataset with size 1000"""
 
 import sys
-import asyncio
 from pathlib import Path
-
 import pandas as pd
-
-ROOT_DIR = Path(__file__).parent.parent
-sys.path.append(str(ROOT_DIR))
 
 from dataset import (
     bayesian_rate,

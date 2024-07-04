@@ -3,7 +3,10 @@ import asyncio
 from typing import Any, Type
 from pathlib import Path
 from pydantic import BaseModel
-from slugify import slugify
+from typing import Annotated
+from sqlalchemy import UniqueConstraint
+from sqlalchemy.orm import mapped_column, Mapped
+
 from sqlalchemy import create_engine, Engine, select, update, insert, inspect
 from sqlalchemy.exc import IntegrityError, InvalidRequestError, NoResultFound
 from sqlalchemy.orm.attributes import InstrumentedAttribute
@@ -27,6 +30,8 @@ sys.path.append(str(ROOT_DIR))
 
 from settings import settings
 
+intpk = Annotated[int, mapped_column(primary_key=True)]
+
 
 class BaseORM(DeclarativeBase):
     @classmethod
@@ -36,6 +41,20 @@ class BaseORM(DeclarativeBase):
         return cls(
             **{key: value for key, value in pydantic_data if key in allowed_attributes}
         )
+
+    @classmethod
+    def contact_filters(
+        cls,
+        filters_list: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        filters = {}
+        for orm_filter in filters_list:
+            for key, value in orm_filter.items():
+                if key in filters:
+                    filters[key].append(value)
+                else:
+                    filters[key] = [value]
+        return filters
 
     @property
     def table(self) -> Type["BaseORM"]:
@@ -68,6 +87,28 @@ class BaseORM(DeclarativeBase):
                 data[column.key] = attr_data
 
         return data
+
+
+class TRelationORM(BaseORM):
+    """Test Relation"""
+
+    __tablename__ = "__test_relation"
+
+    id: Mapped[intpk]
+
+    attr1: Mapped[int]
+    attr2: Mapped[int]
+    attr3: Mapped[int]
+    attr4: Mapped[int | None]
+
+    __table_args__ = (
+        UniqueConstraint("attr1"),
+        UniqueConstraint("attr2"),
+        UniqueConstraint("attr3"),
+    )
+
+    def __repr__(self) -> str:
+        return f"Object.attr1={self.attr1}"
 
 
 def get_sync_engige() -> Engine:
@@ -113,6 +154,7 @@ def get_sessionfactory(
 
 _MAIN_ENGINE = get_async_engine
 
+
 get_engine = _MAIN_ENGINE
 engine = get_engine()
 session_factory = get_sessionfactory(engine)
@@ -144,162 +186,3 @@ class SessionHandler:
         if exc_type:
             return False
         return True
-
-
-# class DatabaseCoreORM:
-#     """Core methods of Database API"""
-
-#     __instance = None
-
-#     def __new__(cls, *args, **kwargs):
-#         if not isinstance(cls.__instance, cls):
-#             cls.__instance = object.__new__(cls, *args, **kwargs)
-#         return cls.__instance
-
-#     def __init__(self) -> None:
-#         if not isinstance(session_factory, async_sessionmaker):
-#             raise ValueError("Session factory should be asynchronous!")
-#         self.session_factory = session_factory
-
-#     def session(self, session: AsyncSession | None = None) -> AsyncSession:
-#         return SessionHandler(session)
-
-#     async def exists(
-#         self,
-#         table: Base,
-#         session: AsyncSession,
-#         **filters: dict[str, Any],
-#     ) -> bool:
-#         """
-#         Check existance of data in the table by filters
-
-#         1. Need to pass table (ORM model). Not record.
-#         2. Need to pass session.
-#         3. Need to pass AT LEAST ONE filter
-#         """
-
-#         if filters == {} or not filters:
-#             raise ValueError(
-#                 "Need to pass at least one filter for check data existence"
-#             )
-
-#         query = select(select(table).filter_by(**filters).exists())
-#         return await session.scalar(query)
-
-#     async def exists_r(
-#         self,
-#         record: Base,
-#         session: AsyncSession,
-#     ) -> bool:
-#         """
-#         Check existance of the record in the table by their attributes
-
-#         1. Need to pass record (instance of ORM model).
-#         2. Need to pass session.
-#         """
-
-#         table = type(record)
-#         filters = {
-#             column.name: getattr(record, column.name)
-#             for column in table.__table__.columns
-#             if getattr(record, column.name) is not None
-#         }
-#         query = select(select(table).filter_by(**filters).exists())
-#         return await session.scalar(query)
-
-#     async def get(
-#         self,
-#         table: Base,
-#         session: AsyncSession,
-#         *attributes: list[InstrumentedAttribute],
-#         **filters: dict[str, Any],
-#     ) -> list[Base] | list[tuple[Any]]:
-#         """
-#         Get data from table usings passed filters.
-#         Retrieves only passed attributes.
-#         If attributes aren't passed, all attributes are retrived.
-
-#         1. Need to pass table (ORM model). Not record.
-#         2. Need to pass session.
-#         3. Need to pass AT LEAST ONE filter.
-
-#         Return list of Model Records or Part of Model Records (namedtuple)
-#         """
-
-#         query = select(table)
-#         if len(attributes) > 0:
-#             query = select(*attributes)
-#         if len(filters) > 0:
-#             query = query.filter_by(**filters)
-
-#         data = await session.execute(query)
-#         if len(attributes) == 0:
-#             data = data.scalars()
-#         return data.all()
-
-#     async def insert(
-#         self,
-#         record: Base,
-#         session: AsyncSession,
-#         flush: bool = True,
-#     ) -> None:
-#         """Insert and Flush (object update) method"""
-
-#         session.add(record)
-#         if flush:
-#             await session.flush()
-#         await session.commit()
-
-#     async def insertcr(
-#         self,
-#         record: Base,
-#         session: AsyncSession,
-#         refresh: bool = True,
-#     ) -> None:
-#         """Insert, Commit and Refresh method"""
-
-#         session.add(record)
-#         await session.commit()
-#         if refresh:
-#             await session.refresh(record)
-
-#     async def goc_r(
-#         self,
-#         record: Base,
-#         session: AsyncSession,
-#     ) -> Base:
-#         table = type(record)
-#         data = {
-#             column.name: getattr(record, column.name)
-#             for column in table.__table__.columns
-#             if not (column.name == "id" and getattr(record, column.name) is None)
-#         }
-
-#         insert_stmt = Insert(table).values(**data)
-#         do_nothing_stmt = insert_stmt.on_conflict_do_nothing()
-#         returning = do_nothing_stmt.returning(*table.__table__.columns)
-
-#         result = await session.execute(returning)
-#         await session.commit()
-#         return result.fetchone()
-
-#     async def update_r(
-#         self,
-#         record: Base,
-#         session: AsyncSession,
-#     ) -> Base | None:
-#         raise NotImplementedError("update_r is not implemented")
-
-#     async def update(
-#         self,
-#         table: Base,
-#         session: AsyncSession,
-#         filters: dict[str, Any],
-#         flush: bool = False,
-#         **updates: dict[str, Any],
-#     ) -> None:
-#         query = update(table).filter_by(**filters).values(**updates)
-#         await session.execute(query)
-#         if flush:
-#             await session.flush()
-#         await session.commit()

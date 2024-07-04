@@ -1,16 +1,15 @@
-"""Content types according IMDb"""
+"""Content Types according IMDb"""
 
 import sys
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).parent.parent
+ROOT_DIR = Path(__file__).parent
 sys.path.append(str(ROOT_DIR))
+from services.models import MovieTypeServiceDM
 
-from services.models import MovieTypeSDM
 
-
-movie_types: list[MovieTypeSDM] = [
-    MovieTypeSDM(
+movie_types: list[MovieTypeServiceDM] = [
+    MovieTypeServiceDM(
         imdb_name=d[0],
         name_en=d[1],
         name_ru=d[2],

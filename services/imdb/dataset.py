@@ -1,9 +1,7 @@
 import io
-import re
 import sys
 import gzip
 from pathlib import Path
-from pprint import pprint
 from functools import partial
 from abc import abstractmethod
 from typing import Generator, Callable, Dict, Iterable, Any
@@ -14,11 +12,14 @@ import numpy as np
 from pydantic import BaseModel
 
 ROOT_DIR = Path(__file__).parent.parent
-PROJ_DIR = ROOT_DIR.parent
-sys.path.append(str(PROJ_DIR))
+sys.path.append(str(ROOT_DIR.parent))
 
 from services.imdb.settings import settings
-from services.models import IMDbMovieSDM, IMDbPersonSDM, IMDbPrincipalSDM
+from services.models import (
+    IMDbMovieServiceDM,
+    IMDbPersonServiceDM,
+    IMDbPrincipalServiceDM,
+)
 from services.imdb.notation import (
     AKAS,
     BASICS,
@@ -89,9 +90,9 @@ class AbstractFactory:
 
 
 class IMDbMovieFactory(AbstractFactory):
-    def create(self, **kwargs) -> IMDbMovieSDM:
+    def create(self, **kwargs) -> IMDbMovieServiceDM:
         kwargs = self.check_na(**kwargs)
-        return IMDbMovieSDM(
+        return IMDbMovieServiceDM(
             imdb_mvid=kwargs[BASICS.TCONST],
             type=kwargs.get(BASICS.TITLE_TYPE),
             name_en=self.get_name_en(**kwargs),
@@ -132,9 +133,9 @@ class IMDbMovieFactory(AbstractFactory):
 
 
 class IMDbPersonFactory(AbstractFactory):
-    def create(self, **kwargs) -> IMDbPersonSDM:
+    def create(self, **kwargs) -> IMDbPersonServiceDM:
         kwargs = self.check_na(**kwargs)
-        return IMDbPersonSDM(
+        return IMDbPersonServiceDM(
             imdb_nmid=kwargs[NAME.NCONST],
             name_en=kwargs[NAME.PRIMARY_NAME],
             birth_y=kwargs.get(NAME.BIRTH_YEAR, None),
@@ -145,9 +146,9 @@ class IMDbPersonFactory(AbstractFactory):
 
 
 class IMDbMoviePrincipalsFactory(AbstractFactory):
-    def create(self, **kwargs) -> IMDbPrincipalSDM:
+    def create(self, **kwargs) -> IMDbPrincipalServiceDM:
         kwargs = self.check_na(**kwargs)
-        return IMDbPrincipalSDM(
+        return IMDbPrincipalServiceDM(
             imdb_movie=kwargs[PRINCIPALS.TCONST],
             imdb_person=kwargs[PRINCIPALS.NCONST],
             ordering=kwargs[PRINCIPALS.ORDERING],
@@ -421,7 +422,7 @@ class IMDbDataSet(object):
     def get_movies(
         self,
         amount: int = 10000,
-    ) -> list[IMDbMovieSDM]:
+    ) -> list[IMDbMovieServiceDM]:
         # if debug - we use local filtered (small) dumps
         if self.debug:
             data = self.get_basics(BASICS_FILTERED)
@@ -566,7 +567,7 @@ class IMDbDataSet(object):
     def get_movie_crew(
         self,
         imdb_mvids: list[str],
-    ) -> tuple[list[IMDbPrincipalSDM], list[IMDbPersonSDM]]:
+    ) -> tuple[list[IMDbPrincipalServiceDM], list[IMDbPersonServiceDM]]:
         if self.debug:
             principals = self.get_principals(
                 PRINCIPALS_FILTERED,

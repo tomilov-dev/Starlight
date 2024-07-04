@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     DEBUG: bool
     MEDIA_DIR: str
 
+    TMDB_APIKEY: str
+    PROXY: str
+
+    TMDB_MAX_RATE: int
+    TMDB_RATE_PERIOD: int
+
+    IMDB_MAX_RATE: int
+    IMDB_RATE_PERIOD: int
+
     @property
     def PG_URL(self) -> str:
         return f"{self.PG_USER}:{self.PG_PASSWORD}@{self.PG_HOST}:{self.PG_PORT}/{self.PG_NAME}"

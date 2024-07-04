@@ -8,12 +8,10 @@ from bs4 import BeautifulSoup as soup
 from tqdm.asyncio import tqdm_asyncio
 
 
-PROJ_DIR = Path(__file__).parent.parent.parent
-sys.path.append(str(PROJ_DIR))
-
-
+sys.path.append(str(Path(__file__).parent.parent.parent))
 from services.base_scraper import BaseScraper
-from services.models import IMDbMovieExtraInfo
+from services.models import IMDbMovieExtraInfoServiceDM
+from services.imdb.settings import settings
 
 
 class IMDbEmptyResponeError(Exception):
@@ -36,9 +34,9 @@ class IMDbMovieExtraInfoInterface(object):
 
 
 class IMDBMovieExtraInfoFactory:
-    def create(self, **kwargs) -> IMDbMovieExtraInfo:
+    def create(self, **kwargs) -> IMDbMovieExtraInfoServiceDM:
         self._error = self._check_error(**kwargs)
-        return IMDbMovieExtraInfo(
+        return IMDbMovieExtraInfoServiceDM(
             error=self._error,
             imdb_mvid=kwargs.get("imdb_mvid"),
             image_url=self._get("image_url", **kwargs),
@@ -62,8 +60,8 @@ class IMDbScraper(BaseScraper):
     def __init__(
         self,
         proxy: str = None,
-        max_rate: int = 5,
-        rate_period: int = 1,
+        max_rate: int = settings.IMDB_MAX_RATE,
+        rate_period: int = settings.IMDB_RATE_PERIOD,
         debug: bool = False,
     ) -> None:
         super().__init__(
@@ -113,7 +111,7 @@ class IMDbScraper(BaseScraper):
 
         return False
 
-    async def get_movie(self, imdb_mvid: str) -> IMDbMovieExtraInfo:
+    async def get_movie(self, imdb_mvid: str) -> IMDbMovieExtraInfoServiceDM:
         movie_data = {"imdb_mvid": imdb_mvid}
         URL = f"https://www.imdb.com/title/{imdb_mvid}"
 
@@ -134,10 +132,10 @@ async def LoadTesting():
     moviesInfo = await tqdm_asyncio.gather(*tasks)
 
     for movieInfo in moviesInfo:
-        movieInfo: IMDbMovieExtraInfo
+        movieInfo: IMDbMovieExtraInfoServiceDM
 
         print(movieInfo.image_url)
 
 
-if __name__ == "__main__":
-    asyncio.run(LoadTesting())
+# if __name__ == "__main__":
+#     asyncio.run(LoadTesting())

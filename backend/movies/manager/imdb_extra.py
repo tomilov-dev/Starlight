@@ -11,35 +11,40 @@ sys.path.append(str(ROOT_DIR))
 sys.path.append(str(PROJ_DIR))
 sys.path.append(str(PROJ_DIR.parent))
 
-from services.models import IMDbMovieExtraInfo
-from database.manager import DatabaseManager, ExceptionToHandle
+from database.manager import AbstractPersonDataSource, AbstractMovieDataSource
+from movies.source import MovieDataSource, IMDbMovieExtraInfoSourceDM
+from persons.source import PersonDataSource
+from database.manager import DataBaseManager, ExceptionToHandle
 from movies.orm import IMDbMovieORM
 from services.imdb.scraper import (
     IMDbScraper,
-    IMDbMovieExtraInfo,
+    IMDbMovieExtraInfoServiceDM,
     IMDb404Error,
     IMDb503Error,
     IMDbEmptyResponeError,
 )
 
 
-SCRAPER = IMDbScraper(max_rate=5, rate_period=1)
-
-
-class IMDbMovieExtraManager(DatabaseManager):
+class IMDbMovieExtraManager(DataBaseManager):
     ORM = IMDbMovieORM
 
     def __init__(
         self,
+        movie_source: AbstractMovieDataSource = MovieDataSource(),
+        person_source: AbstractPersonDataSource = PersonDataSource(),
         exceptions_to_handle: list[ExceptionToHandle] = [
             ExceptionToHandle(IntegrityError, "duplicate key value"),
         ],
     ) -> None:
-        super().__init__(exceptions_to_handle)
+        super().__init__(
+            movie_source=movie_source,
+            person_source=person_source,
+            exceptions_to_handle=exceptions_to_handle,
+        )
 
-    async def add(self, extra_sdm: IMDbMovieExtraInfo) -> None:
+    async def add(self, extra_sdm: IMDbMovieExtraInfoSourceDM) -> None:
         if extra_sdm.error is None:
-            async with self.dbapi.session() as session:
+            async with self.dbapi.session as session:
                 await self.dbapi.update(
                     IMDbMovieORM,
                     session,
@@ -48,26 +53,27 @@ class IMDbMovieExtraManager(DatabaseManager):
                     imdb_extra_added=True,
                 )
 
-    async def add_many(
-        self,
-        extra_sdms: list[IMDbMovieExtraInfo],
-    ) -> None:
-        tasks = [asyncio.create_task(self.add(extra_sdm)) for extra_sdm in extra_sdms]
-        await asyncio.gather(*tasks)
-
 
 async def imdb_movies_extra_init():
     manager = IMDbMovieExtraManager()
-    not_have_extra = await manager.get(
-        IMDbMovieORM.imdb_mvid,
-        table_model=IMDbMovieORM,
-        imdb_extra_added=False,
-    )
 
-    tasks = [SCRAPER.get_movie(m.imdb_mvid) for m in not_have_extra]
-    movies = await tqdm_asyncio.gather(*tasks)
+    async with manager.dbapi.session as session:
+        not_have_extra = await manager.dbapi.mget(
+            IMDbMovieORM,
+            session,
+            IMDbMovieORM.imdb_mvid,
+            imdb_extra_added=False,
+        )
 
-    await manager.add_many(movies)
+        not_have_extra = not_have_extra[:50]
+
+    tasks = [
+        manager.movie_source.get_imdb_movie_extra(m.imdb_mvid) for m in not_have_extra
+    ]
+    movies_extra = await tqdm_asyncio.gather(*tasks)
+
+    tasks = [manager.add(me) for me in movies_extra]
+    await tqdm_asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":

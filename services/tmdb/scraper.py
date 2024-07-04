@@ -1,22 +1,18 @@
 import sys
-import asyncio
 from pathlib import Path
+from typing import Any
 from pprint import pprint
 from datetime import datetime
 from abc import abstractmethod
-from typing import Any
 
 from pydantic import BaseModel
 from aiohttp import ClientResponse
 
-
-PROJ_DIR = Path(__file__).parent.parent.parent
-sys.path.append(str(PROJ_DIR))
-
-from services.models import TMDbMovieSDM, CollectionSDM, ProductionSDM
-from services.tmdb.settings import settings
-from services.base_scraper import BaseScraper
+sys.path.append(str(Path(__file__).parent.parent.parent))
 from services.tmdb.notation import MovieDetails as MD
+from services.models import TMDbMovieServiceDM, CollectionServiceDM, ProductionServiceDM
+from services.base_scraper import BaseScraper
+from services.tmdb.settings import settings
 
 
 class TMDbAuthFailed(Exception):
@@ -44,7 +40,7 @@ class AbstractFactory:
 class CollectionFactory(AbstractFactory):
     def add_name(
         self,
-        collection: CollectionSDM,
+        collection: CollectionServiceDM,
         name: str,
         lang: str,
     ) -> None:
@@ -64,7 +60,7 @@ class CollectionFactory(AbstractFactory):
         tmdb_id: int,
         name: str,
         lang: str,
-    ) -> CollectionSDM:
+    ) -> CollectionServiceDM:
         name_ru = None
         name_en = None
 
@@ -73,7 +69,7 @@ class CollectionFactory(AbstractFactory):
         elif lang == "ru":
             name_ru = name
 
-        return CollectionSDM(
+        return CollectionServiceDM(
             tmdb_id=tmdb_id,
             name_en=name_en,
             name_ru=name_ru,
@@ -87,8 +83,8 @@ class ProductionFactory(AbstractFactory):
         name_en: str,
         country: str,
         image_url: str,
-    ) -> ProductionSDM:
-        return ProductionSDM(
+    ) -> ProductionServiceDM:
+        return ProductionServiceDM(
             tmdb_id=tmdb_id,
             name_en=name_en,
             country=country,
@@ -101,13 +97,8 @@ class TMDbMovieFactory(AbstractFactory):
         self.collection_factory = CollectionFactory()
         self.production_factory = ProductionFactory()
 
-    def create(self, **kwargs: dict[str, Any]) -> TMDbMovieSDM:
-        # tmdb_mvid = self.cast(self.get(MD.TMDB_MVID, **kwargs), int)
-        # imdb_mvid = self.get(MD.IMDB_MVID, **kwargs)
-        # tagline_en = self.get(MD.TAGLINE, **kwargs)
-        # print(tmdb_mvid, imdb_mvid, tagline_en)
-
-        return TMDbMovieSDM(
+    def create(self, **kwargs: dict[str, Any]) -> TMDbMovieServiceDM:
+        return TMDbMovieServiceDM(
             name_en=kwargs.get(MD.TITLE, None),
             tmdb_mvid=self.cast(self.get(MD.TMDB_MVID, **kwargs), int),
             imdb_mvid=self.get(MD.IMDB_MVID, **kwargs),
@@ -165,7 +156,7 @@ class TMDbMovieFactory(AbstractFactory):
         self,
         lang: str = "en-US",
         **kwargs,
-    ) -> CollectionSDM | None:
+    ) -> CollectionServiceDM | None:
         collection = None
         data: dict = self.get(MD.COLLECTION, **kwargs)
         if data:
@@ -200,7 +191,7 @@ class TMDbMovieFactory(AbstractFactory):
 
         return countries
 
-    def get_productions(self, **kwargs) -> list[ProductionSDM] | None:
+    def get_productions(self, **kwargs) -> list[ProductionServiceDM] | None:
         productions = None
 
         production_data = self.get(MD.PRODUCTION, **kwargs)
@@ -278,9 +269,9 @@ class TMDbMovieFactory(AbstractFactory):
 
     def add_ru_details(
         self,
-        movie: TMDbMovieSDM,
+        movie: TMDbMovieServiceDM,
         **kwargs,
-    ) -> TMDbMovieSDM:
+    ) -> TMDbMovieServiceDM:
         movie.name_ru = kwargs.get(MD.TITLE, None)
         movie.tagline_ru = kwargs.get(MD.TAGLINE, None)
         movie.overview_ru = kwargs.get(MD.OVERVIEW, None)
@@ -310,8 +301,8 @@ class TMDbScraper(BaseScraper):
         self,
         api_key: str,
         proxy: str = None,
-        max_rate: int = 40,
-        rate_period: int = 1,
+        max_rate: int = settings.TMDB_MAX_RATE,
+        rate_period: int = settings.TMDB_RATE_PERIOD,
         debug: bool = False,
     ) -> None:
         super().__init__(
@@ -357,7 +348,7 @@ class TMDbScraper(BaseScraper):
         URL = f"https://api.themoviedb.org/3/movie/{tmdb_mvid}?language={lang}"
         return await self.request(URL)
 
-    async def get_movie(self, imdb_mvid: str) -> TMDbMovieSDM:
+    async def get_movie(self, imdb_mvid: str) -> TMDbMovieServiceDM:
         id_search = await self.find_by_imdb_id(imdb_mvid)
         movies = id_search["movie_results"]
 

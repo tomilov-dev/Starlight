@@ -20,31 +20,31 @@ class InitSlugMixin(BaseModel):
         self.init_slug = slug
 
 
-class CountrySDM(
+class CountryServiceDM(
     NameMixin,
 ):
     iso: str
 
 
-class GenreSDM(
+class GenreServiceDM(
     SlugMixin,
     NameMixin,
 ):
     tmdb_name: str | None
 
 
-class MovieTypeSDM(
+class MovieTypeServiceDM(
     NameMixin,
 ):
     imdb_name: str
 
 
-class PersonProfessionSDM(NameMixin):
+class PersonProfessionServiceDM(NameMixin):
     imdb_name: str
     crew: bool = False
 
 
-class IMDbMovieSDM(
+class IMDbMovieServiceDM(
     InitSlugMixin,
     NameMixin,
 ):
@@ -64,7 +64,7 @@ class IMDbMovieSDM(
     end_year: int | None = None
 
 
-class IMDbPersonSDM(
+class IMDbPersonServiceDM(
     InitSlugMixin,
     NameMixin,
 ):
@@ -73,11 +73,10 @@ class IMDbPersonSDM(
     birth_y: int | None = None
     death_y: int | None = None
     professions: list[str] | None = None
-    # professions: list[PersonProfessionSDM] | None = None
     known_for_titles: list[str] | None = None
 
 
-class IMDbPrincipalSDM(BaseModel):
+class IMDbPrincipalServiceDM(BaseModel):
     imdb_movie: str
     imdb_person: str
     ordering: int
@@ -88,13 +87,13 @@ class IMDbPrincipalSDM(BaseModel):
     characters: list[str] | None = None
 
 
-class CollectionSDM(BaseModel):
+class CollectionServiceDM(BaseModel):
     tmdb_id: int
     name_en: str | None = None
     name_ru: str | None = None
 
 
-class ProductionSDM(
+class ProductionServiceDM(
     InitSlugMixin,
     NameMixin,
 ):
@@ -103,7 +102,7 @@ class ProductionSDM(
     image_url: str | None
 
 
-class TMDbMovieSDM(
+class TMDbMovieServiceDM(
     InitSlugMixin,
     NameMixin,
 ):
@@ -122,16 +121,16 @@ class TMDbMovieSDM(
     votes: int | None = None
     popularity: float | None = None
 
-    collection: CollectionSDM | None
     genres: list[str] | None
-    productions: list[ProductionSDM] | None
     countries: list[str] | None
+    collection: CollectionServiceDM | None
+    productions: list[ProductionServiceDM] | None
 
     tagline_ru: str | None = None
     overview_ru: str | None = None
 
 
-class IMDbMovieExtraInfo(BaseModel):
+class IMDbMovieExtraInfoServiceDM(BaseModel):
     imdb_mvid: str
     image_url: str
 

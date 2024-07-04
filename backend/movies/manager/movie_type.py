@@ -1,24 +1,46 @@
 import sys
 import asyncio
 from pathlib import Path
+from sqlalchemy.exc import IntegrityError
 
 ROOT_DIR = Path(__file__).parent.parent
 PROJ_DIR = ROOT_DIR.parent
 sys.path.append(str(ROOT_DIR))
 sys.path.append(str(PROJ_DIR))
 
-from database.manager import DatabaseManager
+from database.api import ExceptionToHandle
 from movies.orm import MovieTypeORM
-from services.movie_types import movie_types
+from movies.source import MovieDataSource
+from persons.source import PersonDataSource
+from database.manager import (
+    DataBaseManager,
+    AbstractMovieDataSource,
+    AbstractPersonDataSource,
+)
 
 
-class MovieTypeManager(DatabaseManager):
+class MovieTypeManager(DataBaseManager):
+    def __init__(
+        self,
+        movie_source: AbstractMovieDataSource = MovieDataSource(),
+        person_source: AbstractPersonDataSource = PersonDataSource(),
+        exceptions_to_handle: list[ExceptionToHandle] = [
+            ExceptionToHandle(IntegrityError, "duplicate key value"),
+        ],
+    ) -> None:
+        super().__init__(
+            movie_source=movie_source,
+            person_source=person_source,
+            exceptions_to_handle=exceptions_to_handle,
+        )
+
     ORM = MovieTypeORM
 
 
 async def movie_types_init():
-    manager = MovieTypeManager()
-    await manager.goc_batch(movie_types)
+    manager = MovieTypeManager(MovieDataSource())
+    movie_types = manager.movie_source.get_movie_types()
+    await manager.badd(movie_types)
 
 
 if __name__ == "__main__":

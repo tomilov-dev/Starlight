@@ -2,17 +2,16 @@ import sys
 import json
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).parent.parent
+ROOT_DIR = Path(__file__).parent
 sys.path.append(str(ROOT_DIR))
+from services.models import CountryServiceDM
 
-from services.models import CountrySDM
 
-
-def read_json() -> list[CountrySDM]:
+def read_json() -> list[CountryServiceDM]:
     """Read countries.json file and extract prepared countries from IMDb"""
 
-    countries: list[CountrySDM] = []
-    with open(ROOT_DIR / "services" / "countries.json", "r", encoding="utf-8") as file:
+    countries: list[CountryServiceDM] = []
+    with open(ROOT_DIR / "countries.json", "r", encoding="utf-8") as file:
         data: list[dict] = json.loads(file.read())
 
         for country in data:
@@ -21,7 +20,7 @@ def read_json() -> list[CountrySDM]:
                 print(country)
 
             countries.append(
-                CountrySDM(
+                CountryServiceDM(
                     iso=country.get("iso_3166_1"),
                     name_en=country.get("english_name"),
                     name_ru=country.get("russian_name", None),

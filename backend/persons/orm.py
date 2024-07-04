@@ -6,11 +6,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.append(str(ROOT_DIR))
 
-from database.core import Base
+from database.core import BaseORM
 from movies.orm import intpk, IMDbMovieORM
 
 
-class IMDbPersonORM(Base):
+class IMDbPersonORM(BaseORM):
     """IMDb person"""
 
     __tablename__ = "imdb_person"
@@ -33,7 +33,7 @@ class IMDbPersonORM(Base):
     )
 
 
-class TMDbPersonORM(Base):
+class TMDbPersonORM(BaseORM):
     """TMDb person"""
 
     __tablename__ = "tmdb_person"
@@ -59,7 +59,7 @@ class TMDbPersonORM(Base):
     )
 
 
-class ProfessionORM(Base):
+class ProfessionORM(BaseORM):
     """Profession from IMDb"""
 
     __tablename__ = "profession"
@@ -72,7 +72,7 @@ class ProfessionORM(Base):
     __table_args__ = (UniqueConstraint("imdb_name"),)
 
 
-class PersonProfessionORM(Base):
+class PersonProfessionORM(BaseORM):
     """Person Profession from IMDb"""
 
     __tablename__ = "person_profession"
@@ -92,7 +92,7 @@ class PersonProfessionORM(Base):
     )
 
 
-class MoviePrincipalORM(Base):
+class MoviePrincipalORM(BaseORM):
     """Principal of IMDb Movie"""
 
     __tablename__ = "movie_principal"
@@ -119,5 +119,5 @@ class MoviePrincipalORM(Base):
     )
 
     ordering: Mapped[int]
-    job: Mapped[str]
+    job: Mapped[str | None]
     charachters = Column(ARRAY(String), nullable=True)

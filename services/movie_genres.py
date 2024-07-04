@@ -1,16 +1,15 @@
-"""Genre Types from IMDb & TMDb"""
+"""Genres from IMDb & TMDb"""
 
 import sys
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).parent.parent
+ROOT_DIR = Path(__file__).parent
 sys.path.append(str(ROOT_DIR))
+from services.models import GenreServiceDM
 
-from services.models import GenreSDM
 
-
-genres: list[GenreSDM] = [
-    GenreSDM(
+genres: list[GenreServiceDM] = [
+    GenreServiceDM(
         name_en=d[0],
         slug=d[1],
         tmdb_name=d[2],

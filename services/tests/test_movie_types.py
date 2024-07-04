@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 
 sys.path.append(str(Path(__file__).parent.parent))
-
 from movie_types import movie_types
 
 
