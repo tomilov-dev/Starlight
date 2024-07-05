@@ -16,7 +16,7 @@ sys.path.append(str(PROJ_DIR.parent))
 from backend.settings import settings
 from database.api import ExceptionToHandle
 from database.manager import AbstractMovieDataSource, AbstractPersonDataSource
-from database.manager import DataBaseManagerOnInit
+from database.manager import DataBaseManagerOnInit, PersonSearchDM
 from movies.orm import IMDbMovieORM
 from movies.manager.imdb_movie import IMDbMovieManager
 from persons.orm import IMDbPersonORM, ProfessionORM, PersonProfessionORM
@@ -109,6 +109,12 @@ class IMDbPersonManager(DataBaseManagerOnInit):
                 )
 
                 if person_id:
+                    await self.search.add_person(
+                        PersonSearchDM(
+                            id=person_id,
+                            name_en=person_sdm.name_en,
+                        )
+                    )
                     await self.add_professions(person_sdm, person_id, session)
 
 
@@ -128,8 +134,9 @@ async def imdb_persons_init():
 
     persons = await person_ds.get_imdb_persons([m.imdb_mvid for m in imdbs])
     async with manager as imanager:
-        tasks = [asyncio.create_task(imanager.add(p)) for p in persons]
-        await tqdm_asyncio.gather(*tasks)
+        async with imanager.search:
+            tasks = [asyncio.create_task(imanager.add(p)) for p in persons]
+            await tqdm_asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":

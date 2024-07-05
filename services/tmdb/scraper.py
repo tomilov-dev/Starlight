@@ -31,6 +31,10 @@ class MovieDoesNotExist(Exception):
     pass
 
 
+class TMDbRequestError(Exception):
+    pass
+
+
 class AbstractFactory:
     @abstractmethod
     def create(self, **kwargs: dict[str, Any]) -> BaseModel:
@@ -97,28 +101,34 @@ class TMDbMovieFactory(AbstractFactory):
         self.collection_factory = CollectionFactory()
         self.production_factory = ProductionFactory()
 
-    def create(self, **kwargs: dict[str, Any]) -> TMDbMovieServiceDM:
-        return TMDbMovieServiceDM(
-            name_en=kwargs.get(MD.TITLE, None),
-            tmdb_mvid=self.cast(self.get(MD.TMDB_MVID, **kwargs), int),
-            imdb_mvid=self.get(MD.IMDB_MVID, **kwargs),
-            image_url=self.image(self.get(MD.IMAGE_URL, **kwargs)),
-            tagline_en=self.get(MD.TAGLINE, **kwargs),
-            overview_en=self.get(MD.OVERVIEW, **kwargs),
-            release_date=self.get_release_date(**kwargs),
-            budget=self.zero_to_none(self.cast(self.get(MD.BUDGET, **kwargs), int)),
-            revenue=self.zero_to_none(self.cast(self.get(MD.REVENUE, **kwargs), int)),
-            rate=self.zero_to_none(self.cast(self.get(MD.RATE, **kwargs), float)),
-            votes=self.zero_to_none(self.cast(self.get(MD.VOTES, **kwargs), int)),
-            popularity=self.cast(self.get(MD.POPULARITY, **kwargs), float),
-            collection=self.get_collection(**kwargs),
-            countries=self.get_countries(**kwargs),
-            productions=self.get_productions(**kwargs),
-            genres=self.get_genres(**kwargs),
-            title_ru=None,
-            tagline_ru=None,
-            overview_ru=None,
-        )
+    def create(self, **kwargs: dict[str, Any]) -> TMDbMovieServiceDM | None:
+        try:
+            return TMDbMovieServiceDM(
+                name_en=kwargs.get(MD.TITLE, None),
+                tmdb_mvid=self.cast(self.get(MD.TMDB_MVID, **kwargs), int),
+                imdb_mvid=self.get(MD.IMDB_MVID, **kwargs),
+                image_url=self.image(self.get(MD.IMAGE_URL, **kwargs)),
+                tagline_en=self.get(MD.TAGLINE, **kwargs),
+                overview_en=self.get(MD.OVERVIEW, **kwargs),
+                release_date=self.get_release_date(**kwargs),
+                budget=self.zero_to_none(self.cast(self.get(MD.BUDGET, **kwargs), int)),
+                revenue=self.zero_to_none(
+                    self.cast(self.get(MD.REVENUE, **kwargs), int)
+                ),
+                rate=self.zero_to_none(self.cast(self.get(MD.RATE, **kwargs), float)),
+                votes=self.zero_to_none(self.cast(self.get(MD.VOTES, **kwargs), int)),
+                popularity=self.cast(self.get(MD.POPULARITY, **kwargs), float),
+                collection=self.get_collection(**kwargs),
+                countries=self.get_countries(**kwargs),
+                productions=self.get_productions(**kwargs),
+                genres=self.get_genres(**kwargs),
+                title_ru=None,
+                tagline_ru=None,
+                overview_ru=None,
+            )
+
+        except Exception as ex:
+            print(ex)
 
     def image(self, path: str | None) -> str | None:
         if path:
@@ -348,16 +358,22 @@ class TMDbScraper(BaseScraper):
         URL = f"https://api.themoviedb.org/3/movie/{tmdb_mvid}?language={lang}"
         return await self.request(URL)
 
-    async def get_movie(self, imdb_mvid: str) -> TMDbMovieServiceDM:
+    async def get_movie(self, imdb_mvid: str) -> TMDbMovieServiceDM | None:
         id_search = await self.find_by_imdb_id(imdb_mvid)
-        movies = id_search["movie_results"]
 
+        if "movie_results" not in id_search:
+            raise TMDbRequestError(f"Error in TMDb search by id request: {imdb_mvid}")
+
+        movies = id_search["movie_results"]
         if not movies:
             raise MovieDoesNotExist(f"Movie with IMDb id {imdb_mvid} doesn't exist")
 
         tmdb_mvid = movies[0]["id"]
         en_movie_details = await self.get_movie_details(tmdb_mvid)
         movie = self.movie_factory.create(**en_movie_details)
+
+        if not movie:
+            raise TMDbRequestError(f"Error int TMDb movie details request: {tmdb_mvid}")
 
         ru_movie_details = await self.get_movie_details(tmdb_mvid, "ru")
         self.movie_factory.add_ru_details(movie, **ru_movie_details)

@@ -19,17 +19,12 @@ from persons.source import PersonDataSource
 from movies.source import MovieDataSource
 from movies.source import IMDbMovieSourceDM
 from movies.orm import IMDbMovieORM, MovieTypeORM, GenreORM, MovieGenreORM, BaseORM
-from backend.settings import settings
-from services.imdb.dataset import IMDbDataSet
-from services.imdb.scraper import IMDbScraper
-from movies.manager.genre import GenreManager
-from movies.manager.country import CountryManager
-from movies.manager.movie_type import MovieTypeManager
 from database.manager import (
     DataBaseManagerOnInit,
     ExceptionToHandle,
     AbstractMovieDataSource,
     AbstractPersonDataSource,
+    MovieSearchDM,
 )
 
 
@@ -117,6 +112,13 @@ class IMDbMovieManager(DataBaseManagerOnInit):
                 )
 
                 if imdb_id:
+                    await self.search.add_movie(
+                        MovieSearchDM(
+                            id=imdb_id,
+                            name_en=movie_sdm.name_en,
+                            name_ru=movie_sdm.name_ru,
+                        )
+                    )
                     await self.add_imdb_genres(movie_sdm, imdb_id, session)
 
     async def getj(
@@ -145,8 +147,9 @@ async def imdb_movies_init():
     imdb_movies = await manager.movie_source.get_imdb_movies(1000)
 
     async with manager as imanager:
-        tasks = [asyncio.create_task(imanager.add(m)) for m in imdb_movies]
-        await tqdm_asyncio.gather(*tasks)
+        async with imanager.search:
+            tasks = [asyncio.create_task(imanager.add(m)) for m in imdb_movies]
+            await tqdm_asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":

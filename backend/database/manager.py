@@ -17,6 +17,7 @@ PROJ_DIR = ROOT_DIR.parent
 sys.path.append(str(ROOT_DIR))
 sys.path.append(str(PROJ_DIR))
 
+from database.search import SearchClient, MovieSearchDM, PersonSearchDM
 from database.core import BaseORM, SessionHandler
 from database.api import DataBaseAPI, ExceptionHandler, ExceptionToHandle
 
@@ -196,6 +197,7 @@ class DataBaseManager(AbstractDataBaseManager):
 
         self.movie_source = movie_source
         self.person_source = person_source
+        self.search = SearchClient()
 
     async def add(self, object: SourceDataModel) -> int | None:
         async with self.dbapi.session as session:

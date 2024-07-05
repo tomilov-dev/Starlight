@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     PG_POOL_SIZE: int
     PG_MAX_OVERFLOW: int
 
+    SEARCH_HOST: str
+    SEARCH_PORT: int
+    SEARCH_KEY: str
+
     DEBUG: bool
     MEDIA_DIR: str
 

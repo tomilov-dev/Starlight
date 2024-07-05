@@ -13,7 +13,7 @@ from services.movie_genres import genres
 from services.movie_types import movie_types
 from services.imdb.dataset import IMDbDataSet
 from services.imdb.scraper import IMDbScraper
-from services.tmdb.scraper import TMDbScraper, MovieDoesNotExist
+from services.tmdb.scraper import TMDbScraper, MovieDoesNotExist, TMDbRequestError
 from services.models import (
     IMDbMovieServiceDM,
     TMDbMovieServiceDM,
@@ -204,8 +204,11 @@ class MovieDataSource(AbstractMovieDataSource):
         try:
             return self.prepare_tmdb(await self.tmdb_scraper.get_movie(imdb_mvid))
 
-        except MovieDoesNotExist:
-            print("TMDb Movie does not exist", imdb_mvid)
+        except MovieDoesNotExist as ex:
+            print(ex)
+
+        except TMDbRequestError as ex:
+            print(ex)
 
     async def get_imdb_movie_extra(
         self, imdb_mvid: str

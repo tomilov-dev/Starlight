@@ -16,13 +16,6 @@ from movies.source import MovieDataSource, IMDbMovieExtraInfoSourceDM
 from persons.source import PersonDataSource
 from database.manager import DataBaseManager, ExceptionToHandle
 from movies.orm import IMDbMovieORM
-from services.imdb.scraper import (
-    IMDbScraper,
-    IMDbMovieExtraInfoServiceDM,
-    IMDb404Error,
-    IMDb503Error,
-    IMDbEmptyResponeError,
-)
 
 
 class IMDbMovieExtraManager(DataBaseManager):
@@ -64,8 +57,6 @@ async def imdb_movies_extra_init():
             IMDbMovieORM.imdb_mvid,
             imdb_extra_added=False,
         )
-
-        not_have_extra = not_have_extra[:50]
 
     tasks = [
         manager.movie_source.get_imdb_movie_extra(m.imdb_mvid) for m in not_have_extra
