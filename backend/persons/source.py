@@ -37,7 +37,7 @@ class IMDbPersonSourceDM(SourceDataModel):
 
     @property
     def to_exclude(self) -> list[str]:
-        return ["professions"]
+        return ["professions", "slug"]
 
 
 class IMDbPrincipalSourceDM(SourceDataModel):
@@ -47,7 +47,7 @@ class IMDbPrincipalSourceDM(SourceDataModel):
 
     ordering: int
     job: str | None = None
-    charachters: list[str] = []
+    characters: list[str] = []
 
     @property
     def to_exclude(self) -> list[str]:
@@ -99,7 +99,7 @@ class PersonDataSource(AbstractPersonDataSource):
         self,
         principal: IMDbPrincipalServiceDM,
     ) -> IMDbPrincipalSourceDM:
-        charachters = principal.characters if principal.characters else []
+        characters = principal.characters if principal.characters else []
         category = self.professions.get(principal.category, None)
         return IMDbPrincipalSourceDM(
             imdb_movie=principal.imdb_movie,
@@ -107,7 +107,7 @@ class PersonDataSource(AbstractPersonDataSource):
             category=category,
             ordering=principal.ordering,
             job=principal.job,
-            charachters=charachters,
+            characters=characters,
         )
 
     async def get_movie_crew(

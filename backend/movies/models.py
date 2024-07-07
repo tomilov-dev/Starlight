@@ -1,104 +1,140 @@
+import sys
+from pathlib import Path
+
 from pydantic import BaseModel
 from datetime import datetime
 
 
-class MovieTypeDTO(BaseModel):
-    id: int
-    name_en: str
-    name_ru: str
+sys.path.append(str(Path(__file__).parent.parent))
+from movies.base_models import IMDbMovieBaseDTO
+from persons.models import MoviePrincipalPersonDTO
 
 
-class IMDbDTO(BaseModel):
+class MovieCollectionDTO(BaseModel):
     id: int
-    imdb_mvid: str
-    type: MovieTypeDTO
+    tmdb_id: int
 
     name_en: str
     name_ru: str | None
-    slug: str
-
-    is_adult: bool
-    runtime: int
-
-    rate: float | None
-    wrate: float | None
-    votes: int | None
-
-    imdb_extra_added: bool
-    tmdb_added: bool
     image_url: str | None
 
+    ## Relations
 
-class CollectionDTO(BaseModel):
+    ## not in use
+    # tmdb_movies: list["TMDbMovieDTO"] = []
+
+
+class TMDbMovieDTO(BaseModel):
     id: int
-    name_en: str
-    name_ru: str | None
-
-
-class TMDbDTO(BaseModel):
     tmdb_mvid: int
-    imdb_mvid: str
-    collection: int
 
     release_date: datetime
-    budget: int | None
-    revenue: int | None
-    image_url: str | None
+    budget: int | None = None
+    revenue: int | None = None
+    image_url: str | None = None
 
-    tagline_en: str | None
-    overview_en: str | None
+    tagline_en: str | None = None
+    overview_en: str | None = None
 
-    tagline_ru: str | None
-    overview_ru: str | None
+    tagline_ru: str | None = None
+    overview_ru: str | None = None
 
-    rate: float | None
-    votes: int | None
-    popularity: float | None
+    rate: float | None = None
+    votes: int | None = None
+    popularity: float | None = None
+
+    ## Relations
+    collection: MovieCollectionDTO | None = None
+
+    ## not in use
+    # imdb: IMDbMovieBaseDTO | None = None
+    # countries: list["MovieCountryDTO"] = []
+    # production_companies: list["MovieProductionDTO"] = []
 
 
 class CountryDTO(BaseModel):
+    id: int
+
     iso: str
     name_en: str
-    name_ru: str | None
+    name_ru: str | None = None
+    image_url: str | None = None
+
+    ## Relations
+
+    ## not in use
+    # movies: list["MovieCountryDTO"] = []
+    # productions: list["ProductionCompanyDTO"] = []
 
 
 class MovieCountryDTO(BaseModel):
     id: int
-    country: str
-    imdb_mvid: str
-    tmdb_mvid: str
+
+    ## Relations
+    country: CountryDTO
+
+    ## not in use
+    # imdb_movie: IMDbMovieBaseDTO
+    # tmdb_movie: TMDbMovieDTO
+    # country: CountryDTO
 
 
 class ProductionCompanyDTO(BaseModel):
-    company: int
+    id: int
+    tmdb_id: int
 
-    name: str
-    country: str | None
-    image_url: str | None
+    name_en: str
+    slug: str
+    image_url: str | None = None
+
+    ## Relations
+    country_origin: CountryDTO | None = None
+
+    ## not in use
+    # movies: list["MovieProductionDTO"] = []
 
 
 class MovieProductionDTO(BaseModel):
     id: int
-    company: int
-    imdb_mvid: str
-    tmdb_mvid: int
+
+    ## Relations
+    production_company: ProductionCompanyDTO
+
+    ## not in use
+    # imdb_movie: IMDbMovieBaseDTO
+    # tmdb_movie: TMDbMovieDTO
+    # production_company: ProductionCompanyDTO
 
 
 class GenreDTO(BaseModel):
     id: int
     name_en: str
-    name_ru: str | None
+    name_ru: str | None = None
 
     slug: str
     tmdb_name: str | None = None
     image_url: str | None = None
 
+    ## Relations
 
-class GenreMoviesDTO(GenreDTO):
-    movies: list[IMDbDTO] | None = []
+    ## not in use
+    # movies: list["MovieGenreDTO"] = []
 
 
-class MovieGenreDTO(BaseModel):
+class MovieGenreGTO(BaseModel):
     id: int
-    imdb_mvid: str
-    genre: int
+
+    ## Relations
+    genre: "GenreDTO"
+
+    ## not in use
+    # imdb_movie: IMDbMovieBaseDTO
+
+
+class IMDbMovieExtendedDTO(IMDbMovieBaseDTO):
+    tmdb: TMDbMovieDTO | None = None
+
+    genres: list[MovieGenreGTO] = []
+    countries: list[MovieCountryDTO] = []
+    production_companies: list[MovieProductionDTO] = []
+    principals: list[MoviePrincipalPersonDTO] = []

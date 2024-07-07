@@ -1,11 +1,14 @@
 import sys
 import asyncio
-from functools import wraps
+from typing import Any
 from pathlib import Path
 from pydantic import BaseModel
 from tqdm.asyncio import tqdm_asyncio
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import InstrumentedAttribute
+from sqlalchemy.orm import joinedload
+from sqlalchemy import select
 
 ROOT_DIR = Path(__file__).parent.parent
 PROJ_DIR = ROOT_DIR.parent
@@ -18,8 +21,14 @@ from database.api import ExceptionToHandle
 from database.manager import AbstractMovieDataSource, AbstractPersonDataSource
 from database.manager import DataBaseManagerOnInit, PersonSearchDM
 from movies.orm import IMDbMovieORM
+from persons.orm import BaseORM
 from movies.manager.imdb_movie import IMDbMovieManager
-from persons.orm import IMDbPersonORM, ProfessionORM, PersonProfessionORM
+from persons.orm import (
+    IMDbPersonORM,
+    ProfessionORM,
+    PersonProfessionORM,
+    MoviePrincipalORM,
+)
 from services.imdb.dataset import IMDbDataSet
 from persons.source import PersonDataSource, IMDbPersonSourceDM
 from movies.source import MovieDataSource
@@ -81,7 +90,13 @@ class IMDbPersonManager(DataBaseManagerOnInit):
 
         professions = [p for p in professions if p is not None]
         if professions:
-            data = [{"profession": p.id, "person": person_id} for p in professions]
+            data = [
+                {
+                    "profession_id": p.id,
+                    "person_id": person_id,
+                }
+                for p in professions
+            ]
             await self.dbapi.badd(
                 PersonProfessionORM,
                 session,
@@ -117,6 +132,49 @@ class IMDbPersonManager(DataBaseManagerOnInit):
                     )
                     await self.add_professions(person_sdm, person_id, session)
 
+    async def get_persons(
+        self,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> list[IMDbPersonORM]:
+        query = select(IMDbPersonORM)
+        query = query.limit(page_size).offset((page - 1) * page_size)
+
+        async with self.dbapi.session as session:
+            persons = await session.execute(query)
+            return persons.scalars().all()
+
+    async def search_persons(self, text_query: str) -> list[IMDbPersonORM]:
+        searched_persons = await self.search.get_persons(text_query)
+        persons_ids = [p.id for p in searched_persons]
+
+        query = select(IMDbPersonORM)
+        query = query.where(IMDbPersonORM.id.in_(persons_ids))
+        async with self.dbapi.session as session:
+            persons = await session.execute(query)
+            return persons.scalars().all()
+
+    async def get_person(self, slug: str) -> IMDbPersonORM:
+        query = select(IMDbPersonORM)
+        query = query.options(joinedload(IMDbPersonORM.tmdb))
+        query = query.options(
+            joinedload(IMDbPersonORM.professions).options(
+                joinedload(PersonProfessionORM.profession)
+            )
+        )
+        query = query.options(
+            joinedload(IMDbPersonORM.movies).options(
+                joinedload(MoviePrincipalORM.imdb_movie).options(
+                    joinedload(IMDbMovieORM.type)
+                )
+            )
+        )
+        query = query.where(IMDbPersonORM.slug == slug)
+
+        async with self.dbapi.session as session:
+            person = await session.execute(query)
+            return person.scalars().first()
+
 
 async def imdb_persons_init():
     manager = IMDbPersonManager()
@@ -137,6 +195,15 @@ async def imdb_persons_init():
         async with imanager.search:
             tasks = [asyncio.create_task(imanager.add(p)) for p in persons]
             await tqdm_asyncio.gather(*tasks)
+
+
+async def reindex_persons():
+    manager = IMDbPersonManager()
+
+    async with manager.dbapi.session as session:
+        persons = await manager.dbapi.mget(IMDbPersonORM, session)
+        data = [PersonSearchDM(id=m.id, name_en=m.name_en) for m in persons]
+        await manager.search.add_persons(data)
 
 
 if __name__ == "__main__":

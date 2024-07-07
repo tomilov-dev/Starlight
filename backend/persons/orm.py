@@ -20,6 +20,7 @@ class IMDbPersonORM(BaseORM):
     imdb_nmid: Mapped[str]
     name_en: Mapped[str]
     slug: Mapped[str]
+
     birth_y: Mapped[int | None]
     death_y: Mapped[int | None]
     image_url: Mapped[str | None]
@@ -27,35 +28,18 @@ class IMDbPersonORM(BaseORM):
     tmdb_added: Mapped[bool] = mapped_column(default=False)
     imdb_extra_added: Mapped[bool] = mapped_column(default=False)
 
+    ## relationships
+    tmdb: Mapped["TMDbPersonORM"] = relationship(back_populates="imdb")
+    professions: Mapped[list["PersonProfessionORM"]] = relationship(
+        back_populates="person"
+    )
+    movies: Mapped[list["MoviePrincipalORM"]] = relationship(
+        back_populates="imdb_person"
+    )
+
     __table_args__ = (
         UniqueConstraint("imdb_nmid"),
         UniqueConstraint("slug"),
-    )
-
-
-class TMDbPersonORM(BaseORM):
-    """TMDb person"""
-
-    __tablename__ = "tmdb_person"
-
-    id: Mapped[intpk]
-
-    imdb_person: Mapped[int] = mapped_column(
-        ForeignKey(
-            IMDbPersonORM.id,
-            ondelete="CASCADE",
-        )
-    )
-    tmdb_nmid: Mapped[int]
-
-    name_en: Mapped[str]
-    name_ru: Mapped[str | None]
-
-    gender: Mapped[int]
-
-    __table_args__ = (
-        UniqueConstraint("tmdb_nmid"),
-        UniqueConstraint("imdb_person"),
     )
 
 
@@ -69,7 +53,18 @@ class ProfessionORM(BaseORM):
     name_en: Mapped[str]
     name_ru: Mapped[str]
 
-    __table_args__ = (UniqueConstraint("imdb_name"),)
+    ## relations
+    persons_by_profession: Mapped[list["PersonProfessionORM"]] = relationship(
+        back_populates="profession"
+    )
+    movies_by_profession: Mapped[list["MoviePrincipalORM"]] = relationship(
+        back_populates="profession"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("imdb_name"),
+        UniqueConstraint("name_en"),
+    )
 
 
 class PersonProfessionORM(BaseORM):
@@ -78,18 +73,28 @@ class PersonProfessionORM(BaseORM):
     __tablename__ = "person_profession"
 
     id: Mapped[intpk]
-    profession: Mapped[int] = mapped_column(
+
+    ## Foreign Keys
+    profession_id: Mapped[int] = mapped_column(
         ForeignKey(
             ProfessionORM.id,
             ondelete="CASCADE",
         )
     )
-    person: Mapped[int] = mapped_column(
+    person_id: Mapped[int] = mapped_column(
         ForeignKey(
             IMDbPersonORM.id,
             ondelete="CASCADE",
         )
     )
+
+    ## relations
+    person: Mapped["IMDbPersonORM"] = relationship(back_populates="professions")
+    profession: Mapped["ProfessionORM"] = relationship(
+        back_populates="persons_by_profession"
+    )
+
+    __table_args__ = (UniqueConstraint("profession_id", "person_id"),)
 
 
 class MoviePrincipalORM(BaseORM):
@@ -99,25 +104,72 @@ class MoviePrincipalORM(BaseORM):
 
     id: Mapped[intpk]
 
-    imdb_movie: Mapped[int] = mapped_column(
+    ordering: Mapped[int]
+    job: Mapped[str | None]    
+    characters: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
+
+    ## Foreign Keys
+    imdb_movie_id: Mapped[int] = mapped_column(
         ForeignKey(
             IMDbMovieORM.id,
             ondelete="CASCADE",
         )
     )
-    imdb_person: Mapped[int] = mapped_column(
+    imdb_person_id: Mapped[int] = mapped_column(
         ForeignKey(
             IMDbPersonORM.id,
             ondelete="CASCADE",
         )
     )
-    category: Mapped[int | None] = mapped_column(
+    # IMDb 'name' of profession wtf?
+    category_id: Mapped[int | None] = mapped_column(
         ForeignKey(
             ProfessionORM.id,
             ondelete="SET NULL",
         )
     )
 
-    ordering: Mapped[int]
-    job: Mapped[str | None]
-    charachters = Column(ARRAY(String), nullable=True)
+    ## Relationships
+    imdb_movie: Mapped[IMDbMovieORM] = relationship(back_populates="principals")
+    imdb_person: Mapped[IMDbPersonORM] = relationship(back_populates="movies")
+    profession: Mapped[ProfessionORM] = relationship(
+        back_populates="movies_by_profession"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("category_id", "imdb_movie_id"),
+        UniqueConstraint("category_id", "imdb_person_id"),
+    )
+
+
+class TMDbPersonORM(BaseORM):
+    """TMDb person"""
+
+    __tablename__ = "tmdb_person"
+
+    id: Mapped[intpk]
+    tmdb_nmid: Mapped[int]
+
+    name_en: Mapped[str]
+    name_ru: Mapped[str | None]
+
+    gender: Mapped[int]
+
+    ## Foreign Keys
+    imdb_person: Mapped[int] = mapped_column(
+        ForeignKey(
+            IMDbPersonORM.id,
+            ondelete="CASCADE",
+        )
+    )
+
+    ## Relationships
+    imdb: Mapped["IMDbPersonORM"] = relationship(back_populates="tmdb")
+
+    __table_args__ = (
+        UniqueConstraint("tmdb_nmid"),
+        UniqueConstraint("imdb_person"),
+    )
+
+
+IMDbMovieORM.principals = relationship("MoviePrincipalORM", back_populates="imdb_movie")

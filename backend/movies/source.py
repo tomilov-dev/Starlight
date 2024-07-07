@@ -68,7 +68,7 @@ class ProductionSourceDM(SourceDataModel):
 
     @property
     def to_exclude(self) -> list[str]:
-        return ["country"]
+        return ["country", "slug"]
 
 
 class TMDbMovieSourceDM(SourceDataModel):

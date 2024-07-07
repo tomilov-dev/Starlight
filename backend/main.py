@@ -1,6 +1,9 @@
 from fastapi import FastAPI
-from movies.app import router as movies_router
 from fastapi.middleware.cors import CORSMiddleware
+
+
+from movies.app import router as movies_router
+from persons.app import router as persons_router
 
 app = FastAPI()
 
@@ -14,3 +17,4 @@ app.add_middleware(
 )
 
 app.include_router(movies_router)
+app.include_router(persons_router)

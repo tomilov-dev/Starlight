@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 from datetime import datetime
-from typing import List, Optional, Annotated
 from sqlalchemy import (
     ForeignKey,
     String,
@@ -46,14 +45,7 @@ class IMDbMovieORM(BaseORM):
     __tablename__ = "imdb_movie"
 
     id: Mapped[intpk]
-
     imdb_mvid: Mapped[str] = mapped_column(String(20))
-    movie_type: Mapped[int | None] = mapped_column(
-        ForeignKey(
-            MovieTypeORM.id,
-            ondelete="CASCADE",
-        )
-    )
 
     name_en: Mapped[str]
     name_ru: Mapped[str | None]
@@ -75,11 +67,24 @@ class IMDbMovieORM(BaseORM):
 
     image_url: Mapped[str | None]
 
-    ## relationships
-    tmdb: Mapped["TMDbMovieORM"] = relationship(back_populates="imdb")
-    type: Mapped[MovieTypeORM] = relationship(back_populates="imdb_movies")
+    ## Foreign Keys
+    movie_type: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            MovieTypeORM.id,
+            ondelete="CASCADE",
+        )
+    )
 
-    genres: Mapped[List["MovieGenreORM"]] = relationship(back_populates="imdb_movie")
+    ## Relationships
+    type: Mapped[MovieTypeORM] = relationship(back_populates="imdb_movies")
+    tmdb: Mapped["TMDbMovieORM"] = relationship(back_populates="imdb")
+    genres: Mapped[list["MovieGenreORM"]] = relationship(back_populates="imdb_movie")
+    countries: Mapped[list["MovieCountryORM"]] = relationship(
+        back_populates="imdb_movie"
+    )
+    production_companies: Mapped[list["MovieProductionORM"]] = relationship(
+        back_populates="imdb_movie"
+    )
 
     __table_args__ = (
         UniqueConstraint("imdb_mvid"),
@@ -120,19 +125,6 @@ class TMDbMovieORM(BaseORM):
 
     id: Mapped[intpk]
     tmdb_mvid: Mapped[int]
-    imdb_movie: Mapped[str] = mapped_column(
-        ForeignKey(
-            IMDbMovieORM.id,
-            ondelete="CASCADE",
-        )
-    )
-
-    movie_collection: Mapped[int | None] = mapped_column(
-        ForeignKey(
-            MovieCollectionORM.id,
-            ondelete="SET NULL",
-        )
-    )
 
     release_date: Mapped[datetime | None]
     budget: Mapped[int | None] = mapped_column(BigInteger())
@@ -149,9 +141,29 @@ class TMDbMovieORM(BaseORM):
     votes: Mapped[int | None]
     popularity: Mapped[float | None]
 
-    ## relationships
+    ## Foreight Keys
+    imdb_movie: Mapped[str] = mapped_column(
+        ForeignKey(
+            IMDbMovieORM.id,
+            ondelete="CASCADE",
+        )
+    )
+    movie_collection: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            MovieCollectionORM.id,
+            ondelete="SET NULL",
+        )
+    )
+
+    ## Relationships
     imdb: Mapped[IMDbMovieORM] = relationship(back_populates="tmdb")
     collection: Mapped[MovieCollectionORM] = relationship(back_populates="tmdb_movies")
+    countries: Mapped[list["MovieCountryORM"]] = relationship(
+        back_populates="tmdb_movie"
+    )
+    production_companies: Mapped[list["MovieProductionORM"]] = relationship(
+        back_populates="tmdb_movie"
+    )
 
     __table_args__ = (
         UniqueConstraint("tmdb_mvid"),
@@ -172,6 +184,12 @@ class CountryORM(BaseORM):
     name_ru: Mapped[str]
     image_url: Mapped[str | None]
 
+    ## Relationships
+    movies: Mapped[list["MovieCountryORM"]] = relationship(back_populates="country")
+    productions: Mapped[list["ProductionCompanyORM"]] = relationship(
+        back_populates="country_origin"
+    )
+
     __table_args__ = (
         UniqueConstraint("iso"),
         UniqueConstraint("name_en"),
@@ -187,28 +205,34 @@ class MovieCountryORM(BaseORM):
 
     id: Mapped[intpk]
 
-    country: Mapped[int] = mapped_column(
+    # Foreign Keys
+    country_id: Mapped[int] = mapped_column(
         ForeignKey(
             CountryORM.id,
             ondelete="CASCADE",
         )
     )
-    imdb_movie: Mapped[int] = mapped_column(
+    imdb_movie_id: Mapped[int] = mapped_column(
         ForeignKey(
             IMDbMovieORM.id,
             ondelete="CASCADE",
         )
     )
-    tmdb_movie: Mapped[int] = mapped_column(
+    tmdb_movie_id: Mapped[int] = mapped_column(
         ForeignKey(
             TMDbMovieORM.id,
             ondelete="CASCADE",
         )
     )
 
+    ## Relationships
+    imdb_movie: Mapped[IMDbMovieORM] = relationship(back_populates="countries")
+    tmdb_movie: Mapped[TMDbMovieORM] = relationship(back_populates="countries")
+    country: Mapped[CountryORM] = relationship(back_populates="movies")
+
     __table_args__ = (
-        UniqueConstraint("country", "imdb_movie"),
-        UniqueConstraint("country", "tmdb_movie"),
+        UniqueConstraint("country_id", "imdb_movie_id"),
+        UniqueConstraint("country_id", "tmdb_movie_id"),
     )
 
 
@@ -218,6 +242,11 @@ class ProductionCompanyORM(BaseORM):
     id: Mapped[intpk]
     tmdb_id: Mapped[int]
 
+    name_en: Mapped[str]
+    slug: Mapped[str]
+    image_url: Mapped[str | None]
+
+    ## Foreign Keys
     country: Mapped[int | None] = mapped_column(
         ForeignKey(
             CountryORM.id,
@@ -225,9 +254,11 @@ class ProductionCompanyORM(BaseORM):
         )
     )
 
-    name_en: Mapped[str]
-    slug: Mapped[str]
-    image_url: Mapped[str | None]
+    ## Relationships
+    country_origin: Mapped[CountryORM] = relationship(back_populates="productions")
+    movies: Mapped[list["MovieProductionORM"]] = relationship(
+        back_populates="production_company"
+    )
 
     __table_args__ = (
         UniqueConstraint("name_en"),
@@ -243,28 +274,40 @@ class MovieProductionORM(BaseORM):
 
     id: Mapped[intpk]
 
-    production_company: Mapped[int] = mapped_column(
+    ## Foreign Keys
+    production_company_id: Mapped[int] = mapped_column(
         ForeignKey(
             ProductionCompanyORM.id,
             ondelete="CASCADE",
         )
     )
-    imdb_movie: Mapped[int] = mapped_column(
+    imdb_movie_id: Mapped[int] = mapped_column(
         ForeignKey(
             IMDbMovieORM.id,
             ondelete="CASCADE",
         )
     )
-    tmdb_movie: Mapped[int] = mapped_column(
+    tmdb_movie_id: Mapped[int] = mapped_column(
         ForeignKey(
             TMDbMovieORM.id,
             ondelete="CASCADE",
         )
     )
 
+    ## Relationships
+    imdb_movie: Mapped[IMDbMovieORM] = relationship(
+        back_populates="production_companies"
+    )
+    tmdb_movie: Mapped[TMDbMovieORM] = relationship(
+        back_populates="production_companies"
+    )
+    production_company: Mapped[ProductionCompanyORM] = relationship(
+        back_populates="movies"
+    )
+
     __table_args__ = (
-        UniqueConstraint("production_company", "imdb_movie"),
-        UniqueConstraint("production_company", "tmdb_movie"),
+        UniqueConstraint("production_company_id", "imdb_movie_id"),
+        UniqueConstraint("production_company_id", "tmdb_movie_id"),
     )
 
 
@@ -282,7 +325,7 @@ class GenreORM(BaseORM):
     image_url: Mapped[str | None]
 
     ## relations
-    movies: Mapped[List["MovieGenreORM"]] = relationship(back_populates="genre")
+    movies: Mapped[list["MovieGenreORM"]] = relationship(back_populates="genre")
 
     __table_args__ = (
         UniqueConstraint("name_en"),

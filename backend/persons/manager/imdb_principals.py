@@ -130,9 +130,9 @@ class IMDbMoviePrincipalManager(DataBaseManager):
                     MoviePrincipalORM,
                     session,
                     _safe_add=True,
-                    imdb_movie=movie_id,
-                    imdb_person=person_id,
-                    category=category_id,
+                    imdb_movie_id=movie_id,
+                    imdb_person_id=person_id,
+                    category_id=category_id,
                     **principal.to_db(),
                 )
                 await self.mark_up(movie_id, session)
@@ -155,8 +155,10 @@ async def movie_principals_init():
         imdb_mvids=[m.imdb_mvid for m in imdbs]
     )
 
-    tasks = [asyncio.create_task(manager.add(p)) for p in principals]
-    await tqdm_asyncio.gather(*tasks)
+    print(principals[0])
+
+    # tasks = [asyncio.create_task(manager.add(p)) for p in principals]
+    # await tqdm_asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
