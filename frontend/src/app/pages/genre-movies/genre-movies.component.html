@@ -1,6 +1,9 @@
 <div class="px-12 py-8">
-  <h1 class="text-4xl mb-8">Фильмы в жанре "{{ genre?.name_ru }}"</h1>
-  <div *ngIf="genre?.movies !== undefined && genre?.movies?.length === 0">
+  <h1 class="text-4xl mb-8 text-center">
+    Фильмы в жанре "{{ genre?.name_ru }}"
+  </h1>
+
+  <div *ngIf="movies !== undefined && movies?.length === 0">
     <p>Фильмов в жанре "{{ genre?.name_ru }}" пока что нет.</p>
     <a
       [routerLink]="['/genres']"
@@ -10,26 +13,62 @@
   </div>
 
   <div
-    *ngIf="genre?.movies !== undefined && genre?.movies?.length !== 0"
-    class="flex bg-base-200 p-6 gap-4"
+    *ngIf="movies !== undefined && movies?.length !== 0"
+    class="flex flex-col bg-base-200 p-6 gap-4"
   >
-    <div class="basis-3/4 flex flex-col gap-2">
-      <div
-        *ngFor="let movie of genre?.movies"
-        class="p-2 bg-base-400 flex gap-2 max-w-[800px] max-h-[200px]"
-      >
-        <div class="">
-          <img
-            src="{{ movie.image_url }}"
-            class="max-w-full max-h-full"
-            alt="Постер фильма '{{ movie.name_ru }}'"
-          />
-        </div>
-        <div class="flex">
-          <h2 class="text">{{ movie.name_ru }}</h2>
-        </div>
+    <div class="text-center">
+      <h2>Настройки</h2>
+      <div class="bg-base-400 p-10"></div>
+    </div>
+    <div class="flex flex-col gap-4">
+      <div *ngFor="let movie of movies">
+        <app-item-movie [movie]="movie"></app-item-movie>
       </div>
     </div>
-    <div class="basis-1/4 text-center">Настройки</div>
+  </div>
+
+  <div class="flex">
+    <button
+      (click)="onPageChange(page - 1)"
+      class="flex items-center justify-center px-4 h-10 me-3 text-base font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+    >
+      <svg
+        class="w-3.5 h-3.5 me-2 rtl:rotate-180"
+        aria-hidden="true"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 14 10"
+      >
+        <path
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M13 5H1m0 0 4 4M1 5l4-4"
+        />
+      </svg>
+      Предыдущая
+    </button>
+    <button
+      (click)="onPageChange(page + 1)"
+      class="flex items-center justify-center px-4 h-10 text-base font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
+    >
+      Следующая
+      <svg
+        class="w-3.5 h-3.5 ms-2 rtl:rotate-180"
+        aria-hidden="true"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 14 10"
+      >
+        <path
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M1 5h12m0 0L9 1m4 4L9 9"
+        />
+      </svg>
+    </button>
   </div>
 </div>

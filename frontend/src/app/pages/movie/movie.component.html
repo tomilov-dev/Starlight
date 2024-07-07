@@ -1,0 +1,79 @@
+<div class="flex">
+  <div>
+    <img
+      src="{{ movie?.image_url }}"
+      class="max-w-[400px] max-h-[400px] rounded-xl"
+      alt="Постер фильма '{{ movie?.name_ru }}'"
+    />
+  </div>
+  <div class="bg-red-200">
+    <div class="flex flex-col px-6">
+      <h1 class="font-base text-2xl">{{ movie?.name_ru }}</h1>
+      <h2>{{ movie?.tmdb?.tagline_ru }}</h2>
+      <div class="mt-4">
+        <p>Описание:</p>
+        <p>{{ movie?.tmdb?.overview_ru }}</p>
+      </div>
+      <div class="flex gap-4 mt-4">
+        <div>
+          <p>Рейтинг IMDb: {{ movie?.rate }}</p>
+          <p>Голосов IMDb: {{ movie?.votes }}</p>
+          <p>Рейтинг TMDb: {{ movie?.tmdb?.rate }}</p>
+          <p>Голосов TMDb: {{ movie?.tmdb?.votes }}</p>
+          <p>Популярность TMDb: {{ movie?.tmdb?.popularity }}</p>
+          <p>Взвешенный рейтинг: {{ movie?.wrate }}</p>
+        </div>
+        <div>
+          <p>Дата выхода: {{ movie?.tmdb?.release_date }}</p>
+          <p>Длительность: {{ movie?.runtime }} мин</p>
+          <p>Бюджет: {{ movie?.tmdb?.budget }}$</p>
+          <p>Выручка: {{ movie?.tmdb?.revenue }}$</p>
+        </div>
+      </div>
+      <div *ngIf="movie?.tmdb?.collection !== null" class="mt-4">
+        <p>Коллекция</p>
+        <p>
+          {{ movie?.tmdb?.collection?.name_ru }}
+        </p>
+      </div>
+      <div class="mt-4">
+        <p>Жанры</p>
+        <div class="flex gap-2">
+          <p *ngFor="let movieGenre of movie?.genres">
+            {{ movieGenre.genre.name_ru }}
+          </p>
+        </div>
+      </div>
+      <div class="mt-4">
+        <p>Страны</p>
+        <div class="flex gap-2">
+          <p *ngFor="let movieCountry of movie?.countries">
+            {{ movieCountry.country.name_ru }}
+          </p>
+        </div>
+      </div>
+      <div class="mt-4">
+        <p>Киностудии</p>
+        <div class="flex gap-2">
+          <p *ngFor="let movieProduction of movie?.production_companies">
+            {{ movieProduction.production_company.name_en }}
+          </p>
+        </div>
+      </div>
+      <div class="mt-4">
+        <p>Съемочная группа</p>
+        <div class="flex gap-2">
+          <div *ngFor="let moviePrincipal of movie?.principals">
+            <p>{{ moviePrincipal.imdb_person.name_en }}</p>
+            <p>{{ moviePrincipal.job }}</p>
+            <div>
+              <p *ngFor="let character of moviePrincipal.characters">
+                {{ character }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

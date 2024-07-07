@@ -1,0 +1,27 @@
+<div class="p-2 bg-base-400 flex gap-4">
+  <div>
+    <img
+      src="{{ movie?.image_url }}"
+      class="max-w-xs rounded-xl"
+      alt="Постер фильма '{{ movie?.name_ru }}'"
+    />
+  </div>
+  <div class="flex flex-col flex-1">
+    <div>
+      <div class="flex justify-between">
+        <p class="text-xs" *ngIf="movie?.is_adult">Для взрослых</p>
+        <p class="ml-auto text-xs">{{ movie?.type?.name_ru }}</p>
+      </div>
+      <a [routerLink]="['/movies', movie?.slug]">
+        <h2 class="text-lg">{{ movie?.name_ru }}</h2>
+      </a>
+    </div>
+    <div>
+      <p>Год выхода: {{ movie?.start_year }}</p>
+      <p>Длительность: {{ movie?.runtime }} мин</p>
+      <p>Рейтинг IMDb: {{ movie?.rate }}</p>
+      <p>Оценок IMDb: {{ movie?.votes }}</p>
+      <p>Взвешенный рейтинг: {{ movie?.wrate }}</p>
+    </div>
+  </div>
+</div>

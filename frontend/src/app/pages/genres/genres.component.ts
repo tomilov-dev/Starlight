@@ -1,7 +1,6 @@
 import { Component, OnInit } from '@angular/core';
-import { ApiService } from '../../services/api.service';
+import { DataService } from '../../services/data.service';
 import { Genre } from '../../models/genre.model';
-import { throwError } from 'rxjs';
 
 @Component({
   selector: 'app-genres',
@@ -11,20 +10,13 @@ import { throwError } from 'rxjs';
 export class GenresComponent implements OnInit {
   genres: Genre[] = [];
 
-  constructor(private api: ApiService) {}
+  constructor(private dataService: DataService) {}
 
   ngOnInit() {
     this.loadGenres();
   }
 
   loadGenres() {
-    this.api.getGenres().subscribe({
-      next: (data) => {
-        this.genres = data;
-      },
-      error: (error) => {
-        console.error("Can't request genres from api!", error);
-      },
-    });
+    this.genres = this.dataService.getGenres();
   }
 }

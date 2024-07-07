@@ -1,0 +1,20 @@
+<div class="p-2 bg-base-400 flex gap-4">
+  <div>
+    <img
+      *ngIf="person?.image_url !== null"
+      src="{{ person?.image_url }}"
+      class="max-w-xs rounded-xl"
+      alt="Изображение человека '{{ person?.name_en }}'"
+    />
+    <div *ngIf="person?.image_url === null" class="w-32 h-32">
+      <avatar-coffee-cup></avatar-coffee-cup>
+    </div>
+  </div>
+  <div class="flex flex-col">
+    <a [routerLink]="['/persons', person?.slug]">
+      <h2 class="text-lg">{{ person?.name_en }}</h2>
+    </a>
+    <p *ngIf="person?.birth_y !== null">Родился: {{ person?.birth_y }} г.</p>
+    <p *ngIf="person?.death_y !== null">Умер: {{ person?.death_y }} г.</p>
+  </div>
+</div>

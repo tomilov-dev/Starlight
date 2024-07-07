@@ -1,7 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { ApiService } from '../../services/api.service';
-import { GenreMovies } from '../../models/genre.model';
+import { IMDbMovieBase } from '../../models/base.movie.model';
+import { Genre } from '../../models/genre.model';
+import { DataService } from '../../services/data.service';
 
 @Component({
   selector: 'app-genre-movies',
@@ -10,23 +11,43 @@ import { GenreMovies } from '../../models/genre.model';
 })
 export class GenreMoviesComponent implements OnInit {
   slug: string = '';
-  genre: GenreMovies | undefined;
+  genre: Genre | undefined;
+  movies: IMDbMovieBase[] = [];
 
-  constructor(private route: ActivatedRoute, private api: ApiService) {}
+  page: number = 1;
+  pageSize: number = 10;
+  totalMovies: number = 0;
 
-  loadGenreMovies() {
-    this.api.getGenreMovies(this.slug).subscribe({
-      next: (data) => {
-        this.genre = data;
-      },
-      error: (error) => {
-        console.error("Can't request genres from api!", error);
-      },
-    });
-  }
+  constructor(
+    private route: ActivatedRoute,
+    private dataService: DataService
+  ) {}
 
   ngOnInit(): void {
     this.slug = this.route.snapshot.params['slug'];
-    this.loadGenreMovies();
+    this.genre = this.dataService.getGenre(this.slug);
+    this.loadMoviesByGenre();
+  }
+
+  loadMoviesByGenre() {
+    this.dataService
+      .getMoviesByGenre(this.slug, this.page, this.pageSize)
+      .subscribe({
+        next: (data) => {
+          this.movies = data;
+        },
+        error: (error) => {
+          console.error("Can't request genres from api!", error);
+        },
+      });
+  }
+
+  onPageChange(newPage: number): void {
+    if (newPage <= 1) {
+      return;
+    }
+
+    this.page = newPage;
+    this.loadMoviesByGenre();
   }
 }
