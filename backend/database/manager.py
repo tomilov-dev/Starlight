@@ -41,10 +41,7 @@ class SourceDataModel(BaseModel):
         return []
 
     def to_db(self) -> dict:
-        return self.model_dump(
-            exclude=self.to_exclude,
-            exclude_none=True,
-        )
+        return self.model_dump(exclude=self.to_exclude)
 
 
 class AbstractMovieDataSource(ABC):

@@ -32,6 +32,10 @@ class CountryManager(DataBaseManager):
 
     ORM = CountryORM
 
+    async def get_countries(self) -> list[CountryORM]:
+        async with self.dbapi.session as session:
+            return await self.dbapi.mget(CountryORM, session)
+
 
 async def countries_init():
     manager = CountryManager(MovieDataSource())

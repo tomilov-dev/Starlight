@@ -98,7 +98,7 @@ async def test():
     movies = await client.get_movies("щоушенк")
     print(movies)
 
-    persons = await client.get_persons("фриман")
+    persons = await client.get_persons("freeman")
     print(persons)
 
 

@@ -132,9 +132,9 @@ class TMDbMovieManager(DataBaseManagerOnInit):
         ]
         movie_countries = [
             {
-                "country": c.id,
-                "imdb_movie": imdb_id,
-                "tmdb_movie": tmdb_id,
+                "country_id": c.id,
+                "imdb_movie_id": imdb_id,
+                "tmdb_movie_id": tmdb_id,
             }
             for c in countries
         ]
@@ -153,7 +153,11 @@ class TMDbMovieManager(DataBaseManagerOnInit):
         session: AsyncSession,
     ) -> None:
         productions_data = [
-            {"production_company": p.id, "imdb_movie": imdb_id, "tmdb_movie": tmdb_id}
+            {
+                "production_company_id": p.id,
+                "imdb_movie_id": imdb_id,
+                "tmdb_movie_id": tmdb_id,
+            }
             for p in productions
             if p is not None
         ]
