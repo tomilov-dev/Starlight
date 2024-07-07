@@ -146,6 +146,28 @@ class IMDbPersonFactory(AbstractFactory):
 
 
 class IMDbMoviePrincipalsFactory(AbstractFactory):
+    def parse_characters(self, key: str, **kwargs) -> list[str] | None:
+        characters: str = kwargs.get(key, None)
+        if characters:
+            if characters.startswith("["):
+                characters = characters[1:]
+            if characters.endswith("]"):
+                characters = characters[:-1]
+
+            characters = characters.split('",')
+
+            prepared_charcs: list[str] = []
+            for charc in characters:
+                if charc.startswith('"'):
+                    charc = charc[1:]
+                if charc.endswith('"'):
+                    charc = charc[:-1]
+                prepared_charcs.append(charc.strip())
+
+            return prepared_charcs
+
+        return characters
+
     def create(self, **kwargs) -> IMDbPrincipalServiceDM:
         kwargs = self.check_na(**kwargs)
         return IMDbPrincipalServiceDM(
@@ -154,7 +176,7 @@ class IMDbMoviePrincipalsFactory(AbstractFactory):
             ordering=kwargs[PRINCIPALS.ORDERING],
             category=kwargs.get(PRINCIPALS.CATEGORY, None),
             job=kwargs.get(PRINCIPALS.JOB, None),
-            characters=self.str_to_list(PRINCIPALS.CHARACHTERS, **kwargs),
+            characters=self.parse_characters(PRINCIPALS.CHARACHTERS, **kwargs),
         )
 
 
