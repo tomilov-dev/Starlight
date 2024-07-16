@@ -10,7 +10,7 @@ from backend.settings import settings
 from database.manager import SourceDataModel, AbstractMovieDataSource
 from services.countries import countries
 from services.movie_genres import genres
-from services.movie_types import movie_types
+from services.content_types import content_types
 from services.imdb.dataset import IMDbDataSet
 from services.imdb.scraper import IMDbScraper
 from services.tmdb.scraper import TMDbScraper, MovieDoesNotExist, TMDbRequestError
@@ -38,7 +38,7 @@ class GenreSourceDM(SourceDataModel):
     image_url: str | None = None
 
 
-class MovieTypeSourceDM(SourceDataModel):
+class ContentTypeSourceDM(SourceDataModel):
     name_en: str
     name_ru: str
     imdb_name: str
@@ -123,7 +123,7 @@ class IMDbMovieSourceDM(SourceDataModel):
     end_year: int | None = None
 
     ## need to prepare
-    movie_type: MovieTypeSourceDM
+    content_type: ContentTypeSourceDM
     genres: list[GenreSourceDM] = []
 
     ## will be setuped later
@@ -131,7 +131,7 @@ class IMDbMovieSourceDM(SourceDataModel):
 
     @property
     def to_exclude(self) -> list[str]:
-        return ["movie_type", "genres", "slug"]
+        return ["content_type", "genres", "slug"]
 
 
 class IMDbMovieExtraInfoSourceDM(SourceDataModel):
@@ -164,7 +164,7 @@ class MovieDataSource(AbstractMovieDataSource):
         self.imdb_genres = {g.name_en: g for g in self.get_genres()}
         self.tmdb_genres = {g.tmdb_name: g for g in self.get_genres()}
         self.countries = {c.iso: c for c in self.get_countries()}
-        self.movie_types = {mt.imdb_name: mt for mt in self.get_movie_types()}
+        self.content_types = {mt.imdb_name: mt for mt in self.get_content_types()}
 
     def get_countries(self) -> list[CountrySourceDM]:
         return [
@@ -187,14 +187,14 @@ class MovieDataSource(AbstractMovieDataSource):
             for g in genres
         ]
 
-    def get_movie_types(self) -> list[MovieTypeSourceDM]:
+    def get_content_types(self) -> list[ContentTypeSourceDM]:
         return [
-            MovieTypeSourceDM(
+            ContentTypeSourceDM(
                 name_en=mt.name_en,
                 name_ru=mt.name_ru,
                 imdb_name=mt.imdb_name,
             )
-            for mt in movie_types
+            for mt in content_types
         ]
 
     async def get_imdb_movies(self, amount: int) -> list[IMDbMovieSourceDM]:
@@ -221,7 +221,7 @@ class MovieDataSource(AbstractMovieDataSource):
         )
 
     def prepare_imdb(self, movie_svc: IMDbMovieServiceDM) -> IMDbMovieSourceDM:
-        movie_type = self.movie_types.get(movie_svc.type, None)
+        content_type = self.content_types.get(movie_svc.type, None)
         movie_genres = [self.imdb_genres.get(mg, None) for mg in movie_svc.genres]
         movie_genres = [mg for mg in movie_genres if mg is not None]
         return IMDbMovieSourceDM(
@@ -235,7 +235,7 @@ class MovieDataSource(AbstractMovieDataSource):
             votes=movie_svc.votes,
             start_year=movie_svc.start_year,
             end_year=movie_svc.end_year,
-            movie_type=movie_type,
+            content_type=content_type,
             genres=movie_genres,
         )
 
@@ -304,7 +304,7 @@ async def test():
 
     countries = movie_ds.get_countries()
     genres = movie_ds.get_genres()
-    movie_types = movie_ds.get_movie_types()
+    content_types = movie_ds.get_content_types()
 
     imdb_movies = await movie_ds.get_imdb_movies(1000)
     imdb_movie = imdb_movies[0]

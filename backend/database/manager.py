@@ -54,7 +54,7 @@ class AbstractMovieDataSource(ABC):
         pass
 
     @abstractmethod
-    def get_movie_types(self) -> list[SourceDataModel]:
+    def get_content_types(self) -> list[SourceDataModel]:
         pass
 
     @abstractmethod

@@ -13,15 +13,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.append(str(ROOT_DIR))
-from database.core import BaseORM, intpk
+from database.core import BaseORM
 
 
-class MovieTypeORM(BaseORM):
-    """IMDb movie type"""
+class ContentTypeORM(BaseORM):
+    """IMDb content type"""
 
-    __tablename__ = "movie_type"
+    __tablename__ = "content_type"
 
-    id: Mapped[intpk]
     name_en: Mapped[str] = mapped_column(String(40))
     name_ru: Mapped[str] = mapped_column(String(40))
 
@@ -44,7 +43,6 @@ class IMDbMovieORM(BaseORM):
 
     __tablename__ = "imdb_movie"
 
-    id: Mapped[intpk]
     imdb_mvid: Mapped[str] = mapped_column(String(20))
 
     name_en: Mapped[str]
@@ -68,15 +66,15 @@ class IMDbMovieORM(BaseORM):
     image_url: Mapped[str | None]
 
     ## Foreign Keys
-    movie_type: Mapped[int | None] = mapped_column(
+    content_type: Mapped[int | None] = mapped_column(
         ForeignKey(
-            MovieTypeORM.id,
+            ContentTypeORM.id,
             ondelete="CASCADE",
         )
     )
 
     ## Relationships
-    type: Mapped[MovieTypeORM] = relationship(back_populates="imdb_movies")
+    type: Mapped[ContentTypeORM] = relationship(back_populates="imdb_movies")
     tmdb: Mapped["TMDbMovieORM"] = relationship(back_populates="imdb")
     genres: Mapped[list["MovieGenreORM"]] = relationship(back_populates="imdb_movie")
     countries: Mapped[list["MovieCountryORM"]] = relationship(
@@ -100,7 +98,6 @@ class MovieCollectionORM(BaseORM):
 
     __tablename__ = "collection"
 
-    id: Mapped[intpk]
     tmdb_id: Mapped[int]
 
     name_en: Mapped[str]
@@ -112,7 +109,10 @@ class MovieCollectionORM(BaseORM):
         back_populates="collection",
     )
 
-    __table_args__ = (UniqueConstraint("name_en"),)
+    __table_args__ = (
+        UniqueConstraint("name_en"),
+        UniqueConstraint("tmdb_id"),
+    )
 
     def __repr__(self) -> str:
         return self.name_en
@@ -123,7 +123,6 @@ class TMDbMovieORM(BaseORM):
 
     __tablename__ = "tmdb_movie"
 
-    id: Mapped[intpk]
     tmdb_mvid: Mapped[int]
 
     release_date: Mapped[datetime | None]
@@ -177,8 +176,6 @@ class TMDbMovieORM(BaseORM):
 class CountryORM(BaseORM):
     __tablename__ = "country"
 
-    id: Mapped[intpk]
-
     iso: Mapped[str]
     name_en: Mapped[str]
     name_ru: Mapped[str]
@@ -202,8 +199,6 @@ class CountryORM(BaseORM):
 
 class MovieCountryORM(BaseORM):
     __tablename__ = "movie_country"
-
-    id: Mapped[intpk]
 
     # Foreign Keys
     country_id: Mapped[int] = mapped_column(
@@ -239,7 +234,6 @@ class MovieCountryORM(BaseORM):
 class ProductionCompanyORM(BaseORM):
     __tablename__ = "production_company"
 
-    id: Mapped[intpk]
     tmdb_id: Mapped[int]
 
     name_en: Mapped[str]
@@ -263,6 +257,7 @@ class ProductionCompanyORM(BaseORM):
     __table_args__ = (
         UniqueConstraint("name_en"),
         UniqueConstraint("slug"),
+        UniqueConstraint("tmdb_id"),
     )
 
     def __repr__(self) -> str:
@@ -271,8 +266,6 @@ class ProductionCompanyORM(BaseORM):
 
 class MovieProductionORM(BaseORM):
     __tablename__ = "movie_production"
-
-    id: Mapped[intpk]
 
     ## Foreign Keys
     production_company_id: Mapped[int] = mapped_column(
@@ -314,10 +307,8 @@ class MovieProductionORM(BaseORM):
 class GenreORM(BaseORM):
     __tablename__ = "genre"
 
-    id: Mapped[intpk]
-
     name_en: Mapped[str]  # IMDb name
-    name_ru: Mapped[str | None]
+    name_ru: Mapped[str]
 
     slug: Mapped[str]
 
@@ -339,8 +330,6 @@ class GenreORM(BaseORM):
 
 class MovieGenreORM(BaseORM):
     __tablename__ = "movie_genre"
-
-    id: Mapped[intpk]
 
     imdb_movie_id: Mapped[int] = mapped_column(
         ForeignKey(

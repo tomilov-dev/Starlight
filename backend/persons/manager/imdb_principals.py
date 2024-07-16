@@ -155,10 +155,8 @@ async def movie_principals_init():
         imdb_mvids=[m.imdb_mvid for m in imdbs]
     )
 
-    print(principals[0])
-
-    # tasks = [asyncio.create_task(manager.add(p)) for p in principals]
-    # await tqdm_asyncio.gather(*tasks)
+    tasks = [asyncio.create_task(manager.add(p)) for p in principals]
+    await tqdm_asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":

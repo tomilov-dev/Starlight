@@ -22,7 +22,7 @@ from movies.source import IMDbMovieSourceDM
 from persons.orm import IMDbPersonORM, MoviePrincipalORM
 from movies.orm import (
     IMDbMovieORM,
-    MovieTypeORM,
+    ContentTypeORM,
     GenreORM,
     MovieGenreORM,
     BaseORM,
@@ -69,9 +69,9 @@ class IMDbMovieManager(DataBaseManagerOnInit):
 
     async def _initialize(self) -> None:
         async with self.dbapi.session as session:
-            self.movie_types = {
+            self.content_types = {
                 mt.name_en.lower(): mt
-                for mt in await self.dbapi.mget(MovieTypeORM, session)
+                for mt in await self.dbapi.mget(ContentTypeORM, session)
             }
             self.genres = {
                 g.name_en: g for g in await self.dbapi.mget(GenreORM, session)
@@ -83,8 +83,8 @@ class IMDbMovieManager(DataBaseManagerOnInit):
 
     def _deinitialize(self) -> None:
         if self.initialized:
-            if self.movie_types:
-                del self.movie_types
+            if self.content_types:
+                del self.content_types
             if self.genres:
                 del self.genres
             if self.created_imdbs:
@@ -119,8 +119,8 @@ class IMDbMovieManager(DataBaseManagerOnInit):
 
         async with self.exc_handler:
             async with self.dbapi.session as session:
-                movie_type: MovieTypeORM = self.movie_types.get(
-                    movie_sdm.movie_type.imdb_name
+                content_type: ContentTypeORM = self.content_types.get(
+                    movie_sdm.content_type.imdb_name
                 )
                 init_slug = self.slugger.initiate_slug(movie_sdm.name_en)
 
@@ -128,7 +128,7 @@ class IMDbMovieManager(DataBaseManagerOnInit):
                 imdb_id = await self.dbapi.add(
                     self.ORM,
                     session,
-                    movie_type=movie_type.id,
+                    content_type=content_type.id,
                     slug=slug,
                     **movie_sdm.to_db(),
                 )

@@ -9,7 +9,7 @@ sys.path.append(str(ROOT_DIR))
 sys.path.append(str(PROJ_DIR))
 
 from database.api import ExceptionToHandle
-from movies.orm import MovieTypeORM
+from movies.orm import ContentTypeORM
 from movies.source import MovieDataSource
 from persons.source import PersonDataSource
 from database.manager import (
@@ -20,6 +20,8 @@ from database.manager import (
 
 
 class MovieTypeManager(DataBaseManager):
+    ORM = ContentTypeORM
+
     def __init__(
         self,
         movie_source: AbstractMovieDataSource = MovieDataSource(),
@@ -34,12 +36,10 @@ class MovieTypeManager(DataBaseManager):
             exceptions_to_handle=exceptions_to_handle,
         )
 
-    ORM = MovieTypeORM
-
 
 async def movie_types_init():
     manager = MovieTypeManager(MovieDataSource())
-    movie_types = manager.movie_source.get_movie_types()
+    movie_types = manager.movie_source.get_content_types()
     await manager.badd(movie_types)
 
 

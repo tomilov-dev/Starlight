@@ -33,7 +33,7 @@ class GenreServiceDM(
     tmdb_name: str | None
 
 
-class MovieTypeServiceDM(
+class ContentTypeServiceDM(
     NameMixin,
 ):
     imdb_name: str

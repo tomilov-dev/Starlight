@@ -7,15 +7,13 @@ ROOT_DIR = Path(__file__).parent.parent
 sys.path.append(str(ROOT_DIR))
 
 from database.core import BaseORM
-from movies.orm import intpk, IMDbMovieORM
+from movies.orm import IMDbMovieORM
 
 
 class IMDbPersonORM(BaseORM):
     """IMDb person"""
 
     __tablename__ = "imdb_person"
-
-    id: Mapped[intpk]
 
     imdb_nmid: Mapped[str]
     name_en: Mapped[str]
@@ -48,7 +46,6 @@ class ProfessionORM(BaseORM):
 
     __tablename__ = "profession"
 
-    id: Mapped[intpk]
     imdb_name: Mapped[str]
     name_en: Mapped[str]
     name_ru: Mapped[str]
@@ -64,6 +61,7 @@ class ProfessionORM(BaseORM):
     __table_args__ = (
         UniqueConstraint("imdb_name"),
         UniqueConstraint("name_en"),
+        UniqueConstraint("name_ru"),
     )
 
 
@@ -71,8 +69,6 @@ class PersonProfessionORM(BaseORM):
     """Person Profession from IMDb"""
 
     __tablename__ = "person_profession"
-
-    id: Mapped[intpk]
 
     ## Foreign Keys
     profession_id: Mapped[int] = mapped_column(
@@ -102,10 +98,8 @@ class MoviePrincipalORM(BaseORM):
 
     __tablename__ = "movie_principal"
 
-    id: Mapped[intpk]
-
     ordering: Mapped[int]
-    job: Mapped[str | None]    
+    job: Mapped[str | None]
     characters: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=True)
 
     ## Foreign Keys
@@ -121,7 +115,7 @@ class MoviePrincipalORM(BaseORM):
             ondelete="CASCADE",
         )
     )
-    # IMDb 'name' of profession wtf?
+    # it is IMDb 'name' of profession
     category_id: Mapped[int | None] = mapped_column(
         ForeignKey(
             ProfessionORM.id,
@@ -136,9 +130,9 @@ class MoviePrincipalORM(BaseORM):
         back_populates="movies_by_profession"
     )
 
+    # UniqueConstraint("imdb_person_id", "category_id"),
     __table_args__ = (
-        UniqueConstraint("category_id", "imdb_movie_id"),
-        UniqueConstraint("category_id", "imdb_person_id"),
+        UniqueConstraint("imdb_movie_id", "imdb_person_id", "category_id"),
     )
 
 
@@ -147,7 +141,6 @@ class TMDbPersonORM(BaseORM):
 
     __tablename__ = "tmdb_person"
 
-    id: Mapped[intpk]
     tmdb_nmid: Mapped[int]
 
     name_en: Mapped[str]

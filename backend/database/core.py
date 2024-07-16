@@ -10,13 +10,7 @@ from sqlalchemy.orm import mapped_column, Mapped
 from sqlalchemy import create_engine, Engine, select, update, insert, inspect
 from sqlalchemy.exc import IntegrityError, InvalidRequestError, NoResultFound
 from sqlalchemy.orm.attributes import InstrumentedAttribute
-from sqlalchemy.orm import (
-    DeclarativeBase,
-    sessionmaker,
-    load_only,
-    Session,
-    object_session,
-)
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.dialects.postgresql import Insert
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
@@ -30,10 +24,13 @@ sys.path.append(str(ROOT_DIR))
 
 from settings import settings
 
+
 intpk = Annotated[int, mapped_column(primary_key=True)]
 
 
 class BaseORM(DeclarativeBase):
+    id: Mapped[intpk]
+
     @classmethod
     def from_pydantic(cls, pydantic: BaseModel) -> "BaseORM":
         allowed_attributes = set(cls.__table__.columns.keys())

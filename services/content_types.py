@@ -5,11 +5,11 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
 sys.path.append(str(ROOT_DIR))
-from services.models import MovieTypeServiceDM
+from services.models import ContentTypeServiceDM
 
 
-movie_types: list[MovieTypeServiceDM] = [
-    MovieTypeServiceDM(
+content_types: list[ContentTypeServiceDM] = [
+    ContentTypeServiceDM(
         imdb_name=d[0],
         name_en=d[1],
         name_ru=d[2],
