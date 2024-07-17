@@ -10,6 +10,8 @@ __pycache__
 **.xlsx
 **.xls
 
+# example env
+!example.env
 # Local filtered Data for debug mode
 !**.filtered.csv
 
