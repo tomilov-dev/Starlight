@@ -51,12 +51,13 @@ async def select_movies(
     exclude_country: list[int] | None = Query(None),
     order_by: MoviesOrderBy = MoviesOrderBy.DEFAULT,
     asc: bool = Query(False),
-    start_year: int = Query(None, ge=1900, le=2050),
-    end_year: int = Query(None, ge=1900, le=2050),
-    rate: float = Query(None, ge=0, le=10),
-    votes: int = Query(None, ge=0),
-    wrate: float = Query(None, ge=0, le=10),
-    adult: bool = Query(None),
+    start_year: int | None = Query(None, ge=1900, le=2050),
+    end_year: int | None = Query(None, ge=1900, le=2050),
+    rate: float | None = Query(None, ge=0, le=10),
+    votes: int | None = Query(None, ge=0),
+    wrate: float | None = Query(None, ge=0, le=10),
+    adult: bool | None = Query(None),
+    user_id: int | None = Query(None),
 ) -> list[IMDbMovieBaseDTO]:
     movies = await imdbM.select_movies(
         page=page,
@@ -73,6 +74,7 @@ async def select_movies(
         votes=votes,
         wrate=wrate,
         adult=adult,
+        user_id=user_id,
     )
 
     if not movies:
@@ -103,12 +105,13 @@ async def get_movies_by_genre(
     page_size: int = Query(10, ge=10, le=100),
     order_by: MoviesOrderBy = MoviesOrderBy.DEFAULT,
     asc: bool = Query(False),
-    start_year: int = Query(None, ge=1900, le=2050),
-    end_year: int = Query(None, ge=1900, le=2050),
-    rate: float = Query(None, ge=0, le=10),
-    votes: int = Query(None, ge=0),
-    wrate: float = Query(None, ge=0, le=10),
-    adult: bool = Query(None),
+    start_year: int | None = Query(None, ge=1900, le=2050),
+    end_year: int | None = Query(None, ge=1900, le=2050),
+    rate: float | None = Query(None, ge=0, le=10),
+    votes: int | None = Query(None, ge=0),
+    wrate: float | None = Query(None, ge=0, le=10),
+    adult: bool | None = Query(None),
+    user_id: int = Query(None),  ### exclude watched by user movies
 ) -> list[IMDbMovieBaseDTO]:
     movies = await imdbM.get_movies_by_genre(
         genre_slug=slug,
@@ -122,6 +125,7 @@ async def get_movies_by_genre(
         votes=votes,
         wrate=wrate,
         adult=adult,
+        user_id=user_id,
     )
 
     if not movies:

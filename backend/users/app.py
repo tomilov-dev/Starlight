@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, Form
+from fastapi import APIRouter, Depends, HTTPException, Form, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 ROOT_DIR = Path(__file__).parent.parent
@@ -39,24 +39,24 @@ def validate_token(token: str, token_type: str) -> dict:
     return payload
 
 
-def get_username(payload: dict) -> str:
-    username = payload.get("sub", None)
-    if not username:
+def get_user_id(payload: dict) -> str:
+    user_id = payload.get("sub", None)
+    if not user_id:
         raise HTTPException(401, "Invalid token")
-    return username
+    return user_id
 
 
-async def get_user_for_access(token: str = Depends(get_token)):
+async def get_user_for_access(token: str = Depends(get_token)) -> UserDTO:
     payload = validate_token(token, ACCESS_TYPE)
-    username = get_username(payload)
-    user = await manager.get_user(username)
+    user_id = get_user_id(payload)
+    user = await manager.get_user(user_id)
     return user
 
 
-async def get_user_for_refresh(token: str = Depends(get_token)):
+async def get_user_for_refresh(token: str = Depends(get_token)) -> UserDTO:
     payload = validate_token(token, REFRESH_TYPE)
-    username = get_username(payload)
-    user = await manager.get_user(username)
+    user_id = get_user_id(payload)
+    user = await manager.get_user(user_id)
     return user
 
 
@@ -122,5 +122,24 @@ async def refresh_token(user: UserDTO = Depends(get_user_for_refresh)):
 
 
 @router.get("/users/me")
-async def user_check(user: UserDTO = Depends(get_user_for_access)):
-    return user
+async def user_check(user: UserDTO | None = Depends(get_user_for_access)):
+    if user:
+        return user
+    return "Hello, stranger!"
+
+
+@router.post("/users/score")
+async def score_the_movie(
+    movie_id: int = Form(),
+    score: int = Form(ge=0, le=10),
+    user: UserDTO = Depends(get_user_for_access),
+):
+    await manager.add_movie_score(movie_id, user, score)
+
+
+@router.post("/users/watched")
+async def mark_movie_as_watched(
+    movie_id: int = Form(),
+    user: UserDTO = Depends(get_user_for_access),
+):
+    await manager.add_movie_score(movie_id, user, score=None)

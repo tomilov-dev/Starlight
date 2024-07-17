@@ -20,9 +20,10 @@ from database.manager import DataBaseManager
 from database.manager import AbstractMovieDataSource, AbstractPersonDataSource
 from database.api import ExceptionToHandle
 from movies.source import MovieDataSource
+from movies.orm import IMDbMovieORM
 from persons.source import PersonDataSource
 from users.models import UserDTO, RegisterUserDTO, AuthUserDTO, TokenDTO
-from users.orm import UserORM
+from users.orm import UserORM, UserMovieScoreORM
 
 
 TOKEN_TYPE = "type"
@@ -93,7 +94,8 @@ class UserManager(DataBaseManager):
         return self.encode_jwt(
             {
                 TOKEN_TYPE: ACCESS_TYPE,
-                "sub": user.username,
+                "sub": user.id,
+                "username": user.username,
                 "email": user.email,
             },
             time_delta=settings.auth_jwt.access_token_expire,
@@ -103,7 +105,7 @@ class UserManager(DataBaseManager):
         return self.encode_jwt(
             {
                 TOKEN_TYPE: REFRESH_TYPE,
-                "sub": user.username,
+                "sub": user.id,
             },
             time_delta=settings.auth_jwt.refresh_token_expire,
         )
@@ -168,12 +170,36 @@ class UserManager(DataBaseManager):
             raise UserPasswordDoesNotMatch
 
         return UserDTO(
+            id=user.id,
             username=user.username,
             email=user.email,
             active=user.active,
         )
 
-    async def get_user(self, username: str) -> UserDTO:
+    async def get_user(self, user_id: int) -> UserDTO:
         async with self.dbapi.session as session:
-            user_orm = await self.dbapi.get(UserORM, session, username=username)
-            return UserDTO(**user_orm.to_dict())
+            user_orm: UserORM = await self.dbapi.get(UserORM, session, id=user_id)
+            return UserDTO(
+                id=user_orm.id,
+                username=user_orm.username,
+                email=user_orm.email,
+                active=user_orm.active,
+            )
+
+    async def add_movie_score(
+        self,
+        movie_id: int,
+        user: UserDTO,
+        score: int,
+    ) -> None:
+        async with self.dbapi.session as session:
+            data = {"movie_id": movie_id, "user_id": user.id}
+            if score is not None:
+                data.update({"score": score})
+
+            await self.dbapi.upsert(
+                UserMovieScoreORM,
+                session,
+                conflict_attributes=["user_id", "movie_id"],
+                **data
+            )

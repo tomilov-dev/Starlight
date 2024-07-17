@@ -13,6 +13,7 @@ class AuthUserDTO(BaseModel):
 
 
 class UserDTO(BaseModel):
+    id: int
     username: str
     email: EmailStr
     active: bool = True

@@ -39,6 +39,7 @@ from database.manager import (
     AbstractPersonDataSource,
     MovieSearchDM,
 )
+from users.orm import UserMovieScoreORM, UserORM
 
 
 class MoviesOrderBy(Enum):
@@ -233,6 +234,16 @@ class IMDbMovieManager(DataBaseManagerOnInit):
 
         return query
 
+    def exclude_watched_by_user(
+        self,
+        query: Select,
+        user_id: int | None,
+    ) -> Select:
+        if user_id is not None:
+            subquery = select(UserMovieScoreORM.movie_id)
+            query = query.where(IMDbMovieORM.id.notin_(subquery))
+        return query
+
     def add_in_subqueries(
         self,
         query: Select,
@@ -336,6 +347,7 @@ class IMDbMovieManager(DataBaseManagerOnInit):
         wrate: float | None = None,
         votes: int | None = None,
         adult: bool | None = None,
+        user_id: int | None = None,
     ) -> list[IMDbMovieORM]:
         query = select(IMDbMovieORM).distinct()
         query = query.options(joinedload(IMDbMovieORM.type))
@@ -359,6 +371,7 @@ class IMDbMovieManager(DataBaseManagerOnInit):
             include_country,
             exclude_country,
         )
+        query = self.exclude_watched_by_user(query, user_id)
 
         query = self.add_order_by(query, order_by, ascending)
         query = self.add_pagination(query, page, page_size)
@@ -382,6 +395,7 @@ class IMDbMovieManager(DataBaseManagerOnInit):
         wrate: float | None = None,
         votes: int | None = None,
         adult: bool | None = None,
+        user_id: int | None = None,
     ) -> list[IMDbMovieORM]:
         query = select(IMDbMovieORM).distinct()
         query = query.join(
@@ -389,6 +403,8 @@ class IMDbMovieManager(DataBaseManagerOnInit):
         )
         query = query.join(GenreORM, GenreORM.id == MovieGenreORM.genre_id)
         query = query.options(joinedload(IMDbMovieORM.type))
+
+        query = self.exclude_watched_by_user(query, user_id)
 
         query = self.add_filters(query, start_year, end_year, rate, wrate, votes, adult)
         query = self.add_order_by(query, order_by, ascending)

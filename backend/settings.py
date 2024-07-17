@@ -16,7 +16,7 @@ def _check_path(path: str) -> None:
 class AuthJWT(BaseModel):
     private_key_path: Path = ROOT_DIR / "certs" / "jwt-private.pem"
     public_key_path: Path = ROOT_DIR / "certs" / "jwt-public.pem"
-    access_token_expire: timedelta = timedelta(minutes=3)
+    access_token_expire: timedelta = timedelta(minutes=30)
     refresh_token_expire: timedelta = timedelta(days=30)
 
 

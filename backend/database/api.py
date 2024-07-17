@@ -178,6 +178,7 @@ class DataBaseBasicAPI(AbstractDataBaseBacisAPI):
         self,
         table: Type[BaseORM],
         session: AsyncSession,
+        conflict_attributes: list[str] = ["id"],
         **data: Any,
     ) -> BaseORM:
         """
@@ -185,12 +186,13 @@ class DataBaseBasicAPI(AbstractDataBaseBacisAPI):
         Return the record.
         """
 
-        raise NotImplementedError()
+        if not conflict_attributes:
+            conflict_attributes = ["id"]
 
         dset = {k: v for k, v in data.items() if k != "id"}
         query = Insert(table).values(**data)
         query = query.on_conflict_do_update(
-            index_elements=["id"],
+            index_elements=conflict_attributes,
             set_=dset,
         )
         query = query.returning(*table.__table__.columns)

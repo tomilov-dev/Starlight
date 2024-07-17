@@ -333,5 +333,29 @@ async def hand_test():
     await test.test()
 
 
+async def hand_test_upsert():
+    db = DataBaseAPI()
+
+    async with db.session as session:
+        id = await db.add(
+            TRelationORM,
+            session,
+            attr1=1,
+            attr2=2,
+            attr3=3,
+            attr4=4,
+        )
+
+        await db.upsert(
+            TRelationORM,
+            session,
+            id=id,
+            attr1=2,
+            attr2=4,
+            attr3=9,
+            attr4=16,
+        )
+
+
 if __name__ == "__main__":
-    asyncio.run(hand_test())
+    asyncio.run(hand_test_upsert())
