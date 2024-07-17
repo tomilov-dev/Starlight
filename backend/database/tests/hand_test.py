@@ -327,8 +327,8 @@ class BulkAPITest(APIBulkBaseTest):
 
 
 async def hand_test():
-    # test = BasicAPITest(DataBaseAPI(), TEST_CASES[0])
-    test = BulkAPITest(DataBaseAPI(), TEST_CASES)
+    test = BasicAPITest(DataBaseAPI(), TEST_CASES[0])
+    # test = BulkAPITest(DataBaseAPI(), TEST_CASES)
 
     await test.test()
 

@@ -8,6 +8,7 @@ from settings import settings
 ## Need to import all models
 from movies.orm import IMDbMovieORM
 from persons.orm import IMDbPersonORM
+from users.orm import UserORM
 from database.core import BaseORM
 
 config = context.config

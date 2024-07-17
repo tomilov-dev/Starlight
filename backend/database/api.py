@@ -1,4 +1,5 @@
 import sys
+import asyncio
 from pathlib import Path
 from typing import Type, Any, Generator
 
@@ -8,7 +9,9 @@ from sqlalchemy.dialects.postgresql import Insert
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 sys.path.append(str(Path(__file__).parent))
+sys.path.append(str(Path(__file__).parent.parent))
 
+from movies.orm import IMDbMovieORM
 from core import BaseORM, session_factory
 from interfaces import (
     AbstractDataBaseBacisAPI,
@@ -297,3 +300,19 @@ class DataBaseAPI(
     @property
     def session(self) -> AsyncSession:
         return session_factory()
+
+
+async def test():
+    db = DataBaseAPI()
+
+    async with db.session as session:
+        exist = await db.exists(
+            IMDbMovieORM,
+            session,
+            slug="the-shawshank-redemption",
+        )
+        print(exist)
+
+
+if __name__ == "__main__":
+    asyncio.run(test())

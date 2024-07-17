@@ -16,6 +16,8 @@ from persons.source import PersonDataSource
 
 
 class CountryManager(DataBaseManager):
+    ORM = CountryORM
+
     def __init__(
         self,
         movie_source: AbstractMovieDataSource = MovieDataSource(),
@@ -29,8 +31,6 @@ class CountryManager(DataBaseManager):
             person_source=person_source,
             exceptions_to_handle=exceptions_to_handle,
         )
-
-    ORM = CountryORM
 
     async def get_countries(self) -> list[CountryORM]:
         async with self.dbapi.session as session:
